@@ -39,6 +39,46 @@ class Creon:
         self.stockbid_handlers = {}  # 주식/ETF/ELW 호가, 호가잔량 subscribe event handlers
         self.orderevent_handler = None
     
+    def wait(self):
+        remain_time = self.obj_CpUtil_CpCybos.LimitRequestRemainTime
+        remain_count = self.obj_CpUtil_CpCybos.GetLimitRemainCount(1)
+        if remain_count <= 3:
+            time.sleep(remain_time / 1000)
+
+    def request(self, obj, data_fields, header_fields=None, cntidx=0, n=None):
+        def process():
+            obj.BlockRequest()
+
+            status = obj.GetDibStatus()
+            msg = obj.GetDibMsg1()
+            if status != 0:
+                return None
+
+            cnt = obj.GetHeaderValue(cntidx)
+            data = []
+            for i in range(cnt):
+                dict_item = {k: obj.GetDataValue(j, cnt-1-i) for j, k in data_fields.items()}
+                data.append(dict_item)
+            return data
+
+        # 연속조회 처리
+        data = process()
+        while obj.Continue:
+            self.wait()
+            _data = process()
+            if len(_data) > 0:
+                data = _data + data
+                if n is not None and n <= len(data):
+                    break
+            else:
+                break
+
+        result = {'data': data}
+        if header_fields is not None:
+            result['header'] = {k: obj.GetHeaderValue(i) for i, k in header_fields.items()}
+
+        return result
+
     def connect(self, id_, pwd, pwdcert, trycnt=300):
         if not self.connected():
             app = application.Application()
@@ -103,6 +143,56 @@ class Creon:
 
     def sell(self, code, amount):
         return self.order('1', code, amount)
+
+    def get_balance(self):
+        """
+        매수가능금액
+        """
+        account_no, account_gflags = self.init_trade()
+        self.obj_CpTrade_CpTdNew5331A.SetInputValue(0, account_no)
+        self.obj_CpTrade_CpTdNew5331A.BlockRequest()
+        v = self.obj_CpTrade_CpTdNew5331A.GetHeaderValue(10)
+        return v
+    
+    def get_holdingstocks(self):
+        """
+        보유종목
+        """
+        account_no, account_gflags = self.init_trade()
+        self.obj_CpTrade_CpTdNew5331B.SetInputValue(0, account_no)
+        self.obj_CpTrade_CpTdNew5331B.SetInputValue(3, ord('1')) # 1: 주식, 2: 채권
+        self.obj_CpTrade_CpTdNew5331B.BlockRequest()
+        cnt = self.obj_CpTrade_CpTdNew5331B.GetHeaderValue(0)
+        res = []
+        for i in range(cnt):
+            item = {
+                'code': self.obj_CpTrade_CpTdNew5331B.GetDataValue(0, i),
+                'name': self.obj_CpTrade_CpTdNew5331B.GetDataValue(1, i),
+                'holdnum': self.obj_CpTrade_CpTdNew5331B.GetDataValue(6, i),
+                'buy_yesterday': self.obj_CpTrade_CpTdNew5331B.GetDataValue(7, i),
+                'sell_yesterday': self.obj_CpTrade_CpTdNew5331B.GetDataValue(8, i),
+                'buy_today': self.obj_CpTrade_CpTdNew5331B.GetDataValue(10, i),
+                'sell_today': self.obj_CpTrade_CpTdNew5331B.GetDataValue(11, i),
+            }
+            res.append(item)
+        return res
+
+    def get_trade_history(self):
+        account_no, account_gflags = self.init_trade()
+        self.obj_CpTrade_CpTd5341.SetInputValue(0, account_no)
+        self.obj_CpTrade_CpTd5341.SetInputValue(1, account_gflags[0])  # 상품구분
+
+        _fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 22, 24]
+        _keys = [
+            '상품관리구분코드', '주문번호', '원주문번호', '종목코드', '종목이름', 
+            '주문내용', '주문호가구분코드내용', '주문수량', '주문단가', '총체결수량', 
+            '체결수량', '체결단가', '확인수량', '정정취소구분내용 ', '거부사유내용', 
+            '채권매수일', '거래세과세구분내용', '현금신용대용구분내용', '주문입력매체코드내용', 
+            '정정취소가능수량', '매매구분',
+        ]
+
+        result = self.request(self.obj_CpTrade_CpTd5341, dict(zip(_fields, _keys)), cntidx=6)
+        return result
 
     # def get_all_codes():
     #     objCpCodeMgr = win32com.client.Dispatch("CpUtil.CpCodeMgr")
