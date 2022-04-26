@@ -8,6 +8,7 @@ from module import creon
 import json
 from datetime import timedelta, datetime
 import pywinauto import application
+import configparser as parser
 
 PRICE_PER_ORDER = 100000
 
@@ -39,7 +40,13 @@ class AutoTradeModule:
             signal_day = (datetime.today() - timedelta(1)).strftime("%Y-%m-%d")
         print(f"Signal day is : {signal_day}")
 
-        self.conn = pymysql.connect(host='52.78.240.74', user='root', password='apple10g', db='INVESTAR', charset='utf8')
+        properties = parser.ConfigParser()
+        properties.read('../config.ini')
+        host = properties['DB_INFO']['host']
+        pwd = properties['DB_INFO']['pwd']
+        user = properties['DB_INFO']['user']
+        database = properties['DB_INFO']['database']
+        self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
 
         with self.conn.cursor() as curs :
             sql = f"select code, type, close from signal_bollinger_trend where date >= '{signal_day}'"
