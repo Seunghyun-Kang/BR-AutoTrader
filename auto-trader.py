@@ -6,11 +6,12 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from module import creon
 import json
+import time
 from datetime import timedelta, datetime
-import pywinauto import application
+from pywinauto import application
 import configparser as parser
 
-PRICE_PER_ORDER = 100000
+PRICE_PER_ORDER = 50000
 
 class AutoTradeModule:
     def __init__(self):
@@ -22,13 +23,14 @@ class AutoTradeModule:
         os.system('wmic process where "name like \'%CpStart%\'" call terminate')
         os.system('wmic process where "name like \'%DibServer%\'" call terminate')
 
-        time.sleep(5)
-        app = application.Application()
-        app.start('C:\CREON\STARTER\coStarter.exe /prj:cp/id:****/pwd:***/pwdcert:***/autostart')
-        time.sleep(60)
-
         self.creon = creon.Creon()
-        self.creon.connect()
+        properties = parser.ConfigParser()
+        properties.read('./config.ini')
+        creon_id = properties['CREON_INFO']['id']
+        creon_pwd = properties['CREON_INFO']['pwd']
+        creon_cert_pwd = properties['CREON_INFO']['pwdcert']
+        
+        self.creon.connect(creon_id, creon_pwd, creon_cert_pwd)
 
         self.allStockHolding = self.creon.get_holdingstocks()
 
@@ -41,7 +43,7 @@ class AutoTradeModule:
         print(f"Signal day is : {signal_day}")
 
         properties = parser.ConfigParser()
-        properties.read('../config.ini')
+        properties.read('./config.ini')
         host = properties['DB_INFO']['host']
         pwd = properties['DB_INFO']['pwd']
         user = properties['DB_INFO']['user']
@@ -49,35 +51,50 @@ class AutoTradeModule:
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
 
         with self.conn.cursor() as curs :
-            sql = f"select code, type, close from signal_bollinger_trend where date >= '{signal_day}'"
+            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
-    
+
     def __del__(self):
-        self.conn.close()
+        if self.conn != None:
+            self.conn.close()
 
     def start_task(self):
-        for pos in range(len(self.signals)):
-            code = self.signals.values[pos]
-            signal_type = self.signals.values[pos]
-            signal_price = self.signals.values[pos]
-            
-            if signal_price > PRICE_PER_ORDER:
-                num = 1
-            else:
-                num = int(PRICE_PER_ORDER/signal_price)
-            
-            if signal_price * num > self.creon.get_balance():
-                print("No money in account")
-                return
+        print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
 
+        for pos in range(len(self.signals)):
+            print(f"****************************************")
+            print(f"{pos + 1} 번째 주문 --------------------")
+            code = self.signals.values[pos][0]
+            print(f"신호 종목 코드 : {code}")
+            signal_type = self.signals.values[pos][1]
+            print(f"신호 거래 타입 : {signal_type}")
+            print(f"신호 가격 : {self.signals.values[pos][2]}")
+            print(f"신호 일자 : {self.signals.values[pos][3].strftime('%Y-%m-%d')}")
+            signal_price = int(self.signals.values[pos][2])
+            
             if signal_type == 'buy':
-                print("BUY SIGNAL TO CREON")
+                if signal_price > PRICE_PER_ORDER:
+                    num = 1
+                else:
+                    num = int(PRICE_PER_ORDER/signal_price)
+                
+                if signal_price * num > self.creon.get_balance():
+                    print("No money in account")
+                    continue
+
+                print(f"목표 매수 수량: {num}")
+                print(f"---------------------------------------")
+                print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
+                print("")
                 self.creon.buy(code, num)
             else:
                 for stock in self.allStockHolding:
                     if(stock['code'] == code):
-                        print("SELL SIGNAL TO CREON")
+                        print(f"---------------------------------------")
+                        print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
+                        print("")
+                        print("매도")
                         self.creon.sell(code, stock['holdnum'])
         
 a = AutoTradeModule().start_task()
