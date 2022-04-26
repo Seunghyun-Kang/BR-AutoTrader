@@ -25,7 +25,7 @@ class AutoTradeModule:
         app = application.Application()
         app.start('C:\CREON\STARTER\coStarter.exe /prj:cp/id:****/pwd:***/pwdcert:***/autostart')
         time.sleep(60)
-        
+
         self.creon = creon.Creon()
         self.creon.connect()
 
@@ -72,7 +72,5 @@ class AutoTradeModule:
                     if(stock['code'] == code):
                         print("SELL SIGNAL TO CREON")
                         self.creon.sell(code, stock['holdnum'])
-            
-                # 가지고 있는 물량 전부 처분하는 API 만들어야 함.
-
+        
 a = AutoTradeModule().start_task()
