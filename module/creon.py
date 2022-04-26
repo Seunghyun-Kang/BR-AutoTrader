@@ -29,11 +29,8 @@ class Creon:
         self.obj_Dscbo1_CpConclusion = win32com.client.Dispatch('Dscbo1.CpConclusion')
         self.obj_CpTrade_CpTd0322 = win32com.client.Dispatch('CpTrade.CpTd0322')
         self.obj_Dscbo1_StockBid = win32com.client.Dispatch('Dscbo1.StockBid')
+        self.obj_Dscbo1_StockMst = win32com.client.Dispatch('Dscbo1.StockMst')
         bConnect = self.obj_CpUtil_CpCybos.IsConnect
-        
-        if bConnect == 0:
-            print("PLUS 연결 안됨!!!!")
-            exit()
         
         self.stockcur_handlers = {}  # 주식/업종/ELW시세 subscribe event handlers
         self.stockbid_handlers = {}  # 주식/ETF/ELW 호가, 호가잔량 subscribe event handlers
@@ -144,14 +141,28 @@ class Creon:
     def sell(self, code, amount):
         return self.order('1', code, amount)
 
+    def get_stock_info(self, code):
+        if not code.startswith('A'):
+            code = 'A' + code
+        self.obj_Dscbo1_StockMst.SetInputValue(0, code)
+        self.obj_Dscbo1_StockMst.BlockRequest()
+
+        item ={}
+        item['cur_price'] = self.obj_Dscbo1_StockMst.GetHeaderValue(11)
+        item['ask'] = self.obj_Dscbo1_StockMst.GetHeaderValue(16)
+        item['bid'] = self.obj_Dscbo1_StockMst.GetHeaderValue(17)
+
+        return item['cur_price'], item['ask'], item['bid']
+
     def get_balance(self):
         """
         매수가능금액
         """
         account_no, account_gflags = self.init_trade()
         self.obj_CpTrade_CpTdNew5331A.SetInputValue(0, account_no)
+        self.obj_CpTrade_CpTdNew5331A.SetInputValue(1, account_gflags[0])
         self.obj_CpTrade_CpTdNew5331A.BlockRequest()
-        v = self.obj_CpTrade_CpTdNew5331A.GetHeaderValue(10)
+        v = self.obj_CpTrade_CpTdNew5331A.GetHeaderValue(9)
         return v
     
     def get_holdingstocks(self):
