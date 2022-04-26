@@ -23,7 +23,10 @@ class AutoTradeModule:
         os.system('wmic process where "name like \'%CpStart%\'" call terminate')
         os.system('wmic process where "name like \'%DibServer%\'" call terminate')
 
-        self.creon = creon.Creon()
+        now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+        self.f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
+
+        self.creon = creon.Creon(self.f)
         properties = parser.ConfigParser()
         properties.read('./config.ini')
         creon_id = properties['CREON_INFO']['id']
@@ -56,24 +59,32 @@ class AutoTradeModule:
             self.signals = pd.DataFrame(curs.fetchall())
 
     def __del__(self):
-        if self.conn != None:
-            self.conn.close()
+        self.f.close()
+        self.conn.close()
+
 
     def start_task(self):
         print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
-
+        self.f.write(f"현재 계좌 잔고:: {self.creon.get_balance()}\n")
         for pos in range(len(self.signals)):
             print(f"****************************************")
+            self.f.write(f"****************************************\n")
             print(f"{pos + 1} 번째 주문 --------------------")
+            self.f.write(f"{pos + 1} 번째 주문 --------------------\n")
             code = self.signals.values[pos][0]
             print(f"신호 종목 코드 : {code}")
+            self.f.write(f"신호 종목 코드 : {code}\n")
             signal_type = self.signals.values[pos][1]
             print(f"신호 거래 타입 : {signal_type}")
+            self.f.write(f"신호 거래 타입 : {signal_type}\n")
             print(f"신호 가격 : {self.signals.values[pos][2]}")
+            self.f.write(f"신호 가격 : {self.signals.values[pos][2]}\n")
             print(f"신호 일자 : {self.signals.values[pos][3].strftime('%Y-%m-%d')}")
+            self.f.write(f"신호 일자 : {self.signals.values[pos][3].strftime('%Y-%m-%d')}\n")
             signal_price = int(self.signals.values[pos][2])
 
             print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
+            self.f.write(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}\n")
             if signal_type == 'buy':
                 if signal_price > PRICE_PER_ORDER:
                     num = 1
@@ -82,18 +93,21 @@ class AutoTradeModule:
                 
                 if signal_price * num > self.creon.get_balance():
                     print("No money in account")
+                    self.f.write("No money in account\n")
                     continue
 
                 print(f"목표 매수 수량: {num}")
-                print(f"---------------------------------------")
-                print("")
+                self.f.write(f"목표 매수 수량: {num}\n")
+                print(f"---------------------------------------\n")
+                self.f.write(f"---------------------------------------\n\n")
                 self.creon.buy(code, num)
             else:
                 for stock in self.allStockHolding:
-                    if(stock['code'] == code):
-                        print(f"---------------------------------------")
-                        print("")
+                    if(stock['code'] == 'A' + code):
+                        print(f"---------------------------------------\n")
+                        self.f.write(f"---------------------------------------\n")
                         print("매도")
+                        self.f.write(f"매도\n")
                         self.creon.sell(code, stock['holdnum'])
         
 a = AutoTradeModule().start_task()
