@@ -12,7 +12,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 from pywinauto import application
 
 class Creon:
-    def __init__(self):
+    def __init__(self, file):
         self.obj_CpUtil_CpCybos = win32com.client.Dispatch('CpUtil.CpCybos')
         self.obj_CpUtil_CpCodeMgr = win32com.client.Dispatch('CpUtil.CpCodeMgr')
         self.obj_CpSysDib_StockChart = win32com.client.Dispatch('CpSysDib.StockChart')
@@ -31,7 +31,8 @@ class Creon:
         self.obj_Dscbo1_StockBid = win32com.client.Dispatch('Dscbo1.StockBid')
         self.obj_Dscbo1_StockMst = win32com.client.Dispatch('Dscbo1.StockMst')
         bConnect = self.obj_CpUtil_CpCybos.IsConnect
-        
+        self.file = file 
+
         self.stockcur_handlers = {}  # 주식/업종/ELW시세 subscribe event handlers
         self.stockbid_handlers = {}  # 주식/ETF/ELW 호가, 호가잔량 subscribe event handlers
         self.orderevent_handler = None
@@ -128,12 +129,15 @@ class Creon:
         self.obj_CpTrade_CpTd0311.SetInputValue(4, amount)  # 매수수량
         self.obj_CpTrade_CpTd0311.SetInputValue(8, '03')  # 시장가
         result = self.obj_CpTrade_CpTd0311.BlockRequest()
+        self.file.write(f'주문->>>>> {code} - {action} - {result}\n')
         if result != 0:
             print('order request failed.', file=sys.stderr)
+            self.file.write(f'RESULT {code} 주문 요청 실패!!!\n')
         status = self.obj_CpTrade_CpTd0311.GetDibStatus()
         msg = self.obj_CpTrade_CpTd0311.GetDibMsg1()
         if status != 0:
             print('order failed. {}'.format(msg), file=sys.stderr)
+            self.file.write(f'STATUS {code} 주문 요청 실패!!!\n\n')
 
     def buy(self, code, amount):
         return self.order('2', code, amount)
