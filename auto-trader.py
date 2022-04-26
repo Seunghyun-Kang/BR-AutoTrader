@@ -72,7 +72,8 @@ class AutoTradeModule:
             print(f"신호 가격 : {self.signals.values[pos][2]}")
             print(f"신호 일자 : {self.signals.values[pos][3].strftime('%Y-%m-%d')}")
             signal_price = int(self.signals.values[pos][2])
-            
+
+            print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
             if signal_type == 'buy':
                 if signal_price > PRICE_PER_ORDER:
                     num = 1
@@ -85,14 +86,12 @@ class AutoTradeModule:
 
                 print(f"목표 매수 수량: {num}")
                 print(f"---------------------------------------")
-                print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
                 print("")
                 self.creon.buy(code, num)
             else:
                 for stock in self.allStockHolding:
                     if(stock['code'] == code):
                         print(f"---------------------------------------")
-                        print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
                         print("")
                         print("매도")
                         self.creon.sell(code, stock['holdnum'])
