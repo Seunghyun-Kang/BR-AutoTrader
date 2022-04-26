@@ -7,11 +7,25 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from module import creon
 import json
 from datetime import timedelta, datetime
+import pywinauto import application
 
 PRICE_PER_ORDER = 100000
 
 class AutoTradeModule:
     def __init__(self):
+        os.system('taskkill /IM coStarter*  /F  /T')
+        os.system('taskkill /IM CpStart*  /F  /T')
+        os.system('taskkill /IM DibServer*  /F  /T')
+
+        os.system('wmic process where "name like \'%coStarter%\'" call terminate')
+        os.system('wmic process where "name like \'%CpStart%\'" call terminate')
+        os.system('wmic process where "name like \'%DibServer%\'" call terminate')
+
+        time.sleep(5)
+        app = application.Application()
+        app.start('C:\CREON\STARTER\coStarter.exe /prj:cp/id:****/pwd:***/pwdcert:***/autostart')
+        time.sleep(60)
+        
         self.creon = creon.Creon()
         self.creon.connect()
 
