@@ -88,6 +88,7 @@ class AutoTradeModule:
                 print(f"---------------------------------------")
                 print("")
                 self.creon.buy(code, num)
+                time.sleep(1)
             else:
                 for stock in self.allStockHolding:
                     if(stock['code'] == code):
@@ -95,5 +96,6 @@ class AutoTradeModule:
                         print("")
                         print("매도")
                         self.creon.sell(code, stock['holdnum'])
+                        time.sleep(1)
         
 a = AutoTradeModule().start_task()
