@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import time
 import io
+import abc
 sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 
@@ -134,7 +135,6 @@ class Creon:
         msg = self.obj_CpTrade_CpTd0311.GetDibMsg1()
         if status != 0:
             print('order failed. {}'.format(msg), file=sys.stderr)
-
     def buy(self, code, amount):
         return self.order('2', code, amount)
 
@@ -204,6 +204,46 @@ class Creon:
 
         result = self.request(self.obj_CpTrade_CpTd5341, dict(zip(_fields, _keys)), cntidx=6)
         return result
+
+    def subscribe_orderevent(self, cb):
+        obj = win32com.client.Dispatch('Dscbo1.CpConclusion')
+        handler = win32com.client.WithEvents(obj, OrderEventHandler)
+        handler.set_attrs(obj, cb)
+        self.orderevent_handler = obj
+        obj.Subscribe()
+
+    def unsubscribe_orderevent(self):
+        if self.orderevent_handler is not None:
+            self.orderevent_handler.Unsubscribe()
+            self.orderevent_handler = None
+class EventHandler:
+    # 실시간 조회(subscribe)는 최대 400건
+
+    def set_attrs(self, obj, cb):
+        self.obj = obj
+        self.cb = cb
+
+    @abc.abstractmethod
+    def OnReceived(self):
+        pass
+
+class OrderEventHandler(EventHandler):
+    def OnReceived(self):
+        item = {
+            '계좌명': self.obj.GetHeaderValue(1),
+            'name': self.obj.GetHeaderValue(2),
+            '체결수량': self.obj.GetHeaderValue(3),
+            '체결가격': self.obj.GetHeaderValue(4),
+            '주문번호': self.obj.GetHeaderValue(5),
+            '원주문번호': self.obj.GetHeaderValue(6),
+            '계좌번호': self.obj.GetHeaderValue(7),
+            '상품관리구분코드': self.obj.GetHeaderValue(8),
+            '종목코드': self.obj.GetHeaderValue(9),
+            '매매구분코드': self.obj.GetHeaderValue(12),
+            '체결구분코드': self.obj.GetHeaderValue(14),
+            '현금신용대용구분코드': self.obj.GetHeaderValue(17),
+        }
+        self.cb(item)
 
     # def get_all_codes():
     #     objCpCodeMgr = win32com.client.Dispatch("CpUtil.CpCodeMgr")
