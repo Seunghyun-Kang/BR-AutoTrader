@@ -26,11 +26,11 @@ class AutoTradeModule:
         self.creon = creon.Creon()
         properties = parser.ConfigParser()
         properties.read('./config.ini')
-        creon_id = properties['CREON_INFO']['id']
+        self.creon_id = properties['CREON_INFO']['id']
         creon_pwd = properties['CREON_INFO']['pwd']
         creon_cert_pwd = properties['CREON_INFO']['pwdcert']
         
-        self.creon.connect(creon_id, creon_pwd, creon_cert_pwd)
+        self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
 
         self.allStockHolding = self.creon.get_holdingstocks()
 
@@ -52,7 +52,8 @@ class AutoTradeModule:
         with self.conn.cursor() as curs :
             sql = """
             CREATE TABLE IF NOT EXISTS trade_history (
-                hash VARCHAR(20),
+                hashcode VARCHAR(20),
+                id VARCHAR(20),
                 code VARCHAR(20),
                 date DATE,
                 type VARCHAR(20),
@@ -120,7 +121,7 @@ class AutoTradeModule:
         _hash = item['주문번호']
         _date = datetime.today().strftime("%Y-%m-%d")
         with self.conn.cursor() as curs:
-            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
+            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
             curs.execute(sql)
             self.conn.commit()
 work = None
