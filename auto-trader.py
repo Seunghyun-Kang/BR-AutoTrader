@@ -49,6 +49,20 @@ class AutoTradeModule:
         user = properties['DB_INFO']['user']
         database = properties['DB_INFO']['database']
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
+        with self.conn.cursor() as curs :
+            sql = """
+            CREATE TABLE IF NOT EXISTS trade_history (
+                hash VARCHAR(20),
+                code VARCHAR(20),
+                date DATE,
+                type VARCHAR(20),
+                num INT(20),
+                price FLOAT,
+                PRIMARY KEY (hash)      
+            )
+            """
+            curs.execute(sql) 
+        self.conn.commit()
 
         with self.conn.cursor() as curs :
             sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{signal_day}' and valid = 'valid'"
@@ -61,6 +75,7 @@ class AutoTradeModule:
 
     def start_task(self):
         print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
+        self.creon.subscribe_orderevent(self.callback)
 
         for pos in range(len(self.signals)):
             print(f"****************************************")
@@ -74,6 +89,7 @@ class AutoTradeModule:
             signal_price = int(self.signals.values[pos][2])
 
             print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
+            num = 0
             if signal_type == 'buy':
                 if signal_price > PRICE_PER_ORDER:
                     num = 1
@@ -95,7 +111,16 @@ class AutoTradeModule:
                         print(f"---------------------------------------")
                         print("")
                         print("매도")
-                        self.creon.sell(code, stock['holdnum'])
+                        num = stock['holdnum']
+                        self.creon.sell(code, num)
                         time.sleep(1)
-        
+
+    def callback(self, item):
+        print(f"callbakc recieved:: {item}")
+        _hash = item['주문번호']
+        _date = datetime.today().strftime("%Y-%m-%d")
+        with self.conn.cursor() as curs:
+            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
+            curs.execute(sql)
+            self.conn.commit()
 a = AutoTradeModule().start_task()
