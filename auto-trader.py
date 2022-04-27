@@ -123,4 +123,13 @@ class AutoTradeModule:
             sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
             curs.execute(sql)
             self.conn.commit()
-a = AutoTradeModule().start_task()
+work = None
+while True:
+    if work is None: 
+        work = AutoTradeModule()
+        work.start_task()
+    
+    now = datetime.now()
+    if now.hour > 15:
+        print("-----------------오늘의 자동매매 종료------------------")
+        break
