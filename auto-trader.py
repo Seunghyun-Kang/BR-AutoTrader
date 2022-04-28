@@ -62,7 +62,7 @@ class AutoTradeModule:
                 type VARCHAR(20),
                 num INT(20),
                 price FLOAT,
-                PRIMARY KEY (hash)      
+                PRIMARY KEY (hashcode)      
             )
             """
             curs.execute(sql) 
