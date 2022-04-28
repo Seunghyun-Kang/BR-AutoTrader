@@ -29,11 +29,11 @@ class AutoTradeModule:
         self.creon = creon.Creon(self.f)
         properties = parser.ConfigParser()
         properties.read('./config.ini')
-        creon_id = properties['CREON_INFO']['id']
+        self.creon_id = properties['CREON_INFO']['id']
         creon_pwd = properties['CREON_INFO']['pwd']
         creon_cert_pwd = properties['CREON_INFO']['pwdcert']
         
-        self.creon.connect(creon_id, creon_pwd, creon_cert_pwd)
+        self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
 
         self.allStockHolding = self.creon.get_holdingstocks()
 
@@ -52,6 +52,21 @@ class AutoTradeModule:
         user = properties['DB_INFO']['user']
         database = properties['DB_INFO']['database']
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
+        with self.conn.cursor() as curs :
+            sql = """
+            CREATE TABLE IF NOT EXISTS trade_history (
+                hashcode VARCHAR(20),
+                id VARCHAR(20),
+                code VARCHAR(20),
+                date DATE,
+                type VARCHAR(20),
+                num INT(20),
+                price FLOAT,
+                PRIMARY KEY (hash)      
+            )
+            """
+            curs.execute(sql) 
+        self.conn.commit()
 
         with self.conn.cursor() as curs :
             sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{signal_day}' and valid = 'valid'"
@@ -66,6 +81,8 @@ class AutoTradeModule:
     def start_task(self):
         print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
         self.f.write(f"현재 계좌 잔고:: {self.creon.get_balance()}\n")
+        self.creon.subscribe_orderevent(self.callback)
+
         for pos in range(len(self.signals)):
             print(f"****************************************")
             self.f.write(f"****************************************\n")
@@ -85,6 +102,7 @@ class AutoTradeModule:
 
             print(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}")
             self.f.write(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}\n")
+            num = 0
             if signal_type == 'buy':
                 if signal_price > PRICE_PER_ORDER:
                     num = 1
@@ -101,6 +119,7 @@ class AutoTradeModule:
                 print(f"---------------------------------------\n")
                 self.f.write(f"---------------------------------------\n\n")
                 self.creon.buy(code, num)
+                time.sleep(1)
             else:
                 for stock in self.allStockHolding:
                     if(stock['code'] == 'A' + code):
@@ -108,6 +127,25 @@ class AutoTradeModule:
                         self.f.write(f"---------------------------------------\n")
                         print("매도")
                         self.f.write(f"매도\n")
-                        self.creon.sell(code, stock['holdnum'])
-        
-a = AutoTradeModule().start_task()
+                        num = stock['holdnum']
+                        self.creon.sell(code, num)
+                        time.sleep(1)
+
+    def callback(self, item):
+        print(f"callbakc recieved:: {item}")
+        _hash = item['주문번호']
+        _date = datetime.today().strftime("%Y-%m-%d")
+        with self.conn.cursor() as curs:
+            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
+            curs.execute(sql)
+            self.conn.commit()
+work = None
+while True:
+    if work is None: 
+        work = AutoTradeModule()
+        work.start_task()
+    
+    now = datetime.now()
+    if now.hour > 15:
+        print("-----------------오늘의 자동매매 종료------------------")
+        break
