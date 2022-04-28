@@ -120,8 +120,12 @@ class AutoTradeModule:
         print(f"callbakc recieved:: {item}")
         _hash = item['주문번호']
         _date = datetime.today().strftime("%Y-%m-%d")
+        _type = "buy"
+        if item['매매구분코드'] is "1" or item['매매구분코드'] is 1:
+            _type = "sell"
+
         with self.conn.cursor() as curs:
-            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{item['매매구분코드']}', '{item['체결수량']}', '{item['체결가격']}')"
+            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{_type}', '{item['체결수량']}', '{item['체결가격']}')"
             curs.execute(sql)
             self.conn.commit()
 work = None
