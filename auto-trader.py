@@ -23,7 +23,6 @@ class AutoTradeModule:
         os.system('wmic process where "name like \'%CpStart%\'" call terminate')
         os.system('wmic process where "name like \'%DibServer%\'" call terminate')
 
-        
         self.f = file
 
         self.creon = creon.Creon(self.f)
@@ -36,7 +35,11 @@ class AutoTradeModule:
         self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
 
         self.allStockHolding = self.creon.get_holdingstocks()
-
+        
+        PRICE_PER_ORDER = self.creon.get_balance() / 90
+        print(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        self.f.write(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        
         if datetime.today().weekday() == 0:
             signal_day = (datetime.today() - timedelta(2)).strftime("%Y-%m-%d")
         elif datetime.today().weekday() == 5 or datetime.today().weekday() == 6:
