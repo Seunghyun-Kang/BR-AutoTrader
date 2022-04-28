@@ -34,11 +34,9 @@ class AutoTradeModule:
         
         self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
 
-        self.allStockHolding = self.creon.get_holdingstocks()
-        
-        PRICE_PER_ORDER = self.creon.get_balance() / 90
-        print(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
-        self.f.write(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        self.allStockHolding = [] 
+        self.remain_deposit = 0
+        self.accout_money = self.remain_deposit
         
         if datetime.today().weekday() == 0:
             signal_day = (datetime.today() - timedelta(2)).strftime("%Y-%m-%d")
@@ -80,11 +78,29 @@ class AutoTradeModule:
         self.f.close()
         self.conn.close()
 
+    def checkTodayOrder(self):
+        self.allStockHolding = self.creon.get_holdings()['data']
+        self.remain_deposit = self.creon.get_balance()
+        self.accout_money = self.remain_deposit
+
+        for item in self.allStockHolding:
+            self.accout_money = self.accout_money + item['평가금액']
+
+        PRICE_PER_ORDER = self.accout_money / 90
+        print("전체 계좌 잔고: ")
+        print(self.accout_money)
+        print("예수금 잔고: ")
+        print(self.remain_deposit)
+        
+        self.f.write(f"********************전체 계좌 잔고: {self.accout_money}********************\n\n")
+        self.f.write(f"********************예수금 잔고: {self.remain_deposit}********************\n\n")
+        print(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        self.f.write(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        
     def checkDeposit(self):
         needMoney = 0
-        deposit = self.creon.getDeposit()
         sellList = []
-        remain_deposit = deposit
+        remain_deposit = self.remain_deposit
         for pos in range(len(self.signals)):
             code = self.signals.values[pos][0]
             signal_type = self.signals.values[pos][1]
@@ -104,9 +120,14 @@ class AutoTradeModule:
                     remain_deposit = remain_deposit - signal_price * num
             else:
                 for stock in self.allStockHolding:
-                    if stock['code'] == ('A' + code) or stock['code'] == code:
-                        sellList.append((stock['name'], stock['holdnum']))
-                        num = stock['holdnum']
+                    if stock['종목코드'] == ('A' + code):
+                        
+                        num = stock['매도가능수량']
+                        profit = stock['평가손익']
+                        profit_rate = stock['수익률']
+                        sellList.append((stock['종목명'], profit))
+                        print(f"*****************매도 예정 {stock['종목명']} {profit} 이익***********************\n")
+                        self.f.write(f"*****************매도 예정 {stock['종목명']} {profit} 이익***********************\n")
         #얼마 필요한지 카톡 보내기 (remain_deposit)
         #매도 예정 주식, 수량 카톡 보내기 (sellList)
 
@@ -154,12 +175,12 @@ class AutoTradeModule:
                 time.sleep(1)
             else:
                 for stock in self.allStockHolding:
-                    if stock['code'] == ('A' + code) or stock['code'] == code:
+                    if stock['종목코드'] == ('A' + code):
                         print(f"---------------------------------------\n")
                         self.f.write(f"---------------------------------------\n")
                         print("매도")
                         self.f.write(f"매도\n")
-                        num = stock['holdnum']
+                        num = stock['매도가능수량']
                         self.creon.sell(code, num)
                         time.sleep(1)
 
@@ -168,7 +189,7 @@ class AutoTradeModule:
         _hash = item['주문번호']
         _date = datetime.today().strftime("%Y-%m-%d")
         _type = "buy"
-        if item['매매구분코드'] is "1" or item['매매구분코드'] is 1:
+        if item['매매구분코드'] == "1" or item['매매구분코드'] == 1:
             _type = "sell"
 
         with self.conn.cursor() as curs:
@@ -179,23 +200,22 @@ class AutoTradeModule:
 work = None
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
+work = AutoTradeModule(f)
 
 while True:
-    now = datetime.now()
-    
-    if work is None: 
-        work = AutoTradeModule(f)
-    if now.hour == 8 and now.min == 0 and now.second == 0:
+    _time = datetime.now()
+
+    if _time.hour == 8 and _time.minute == 30 and _time.second == 0:
+        work.checkTodayOrder()
         work.checkDeposit()
 
-    if now.hour == 9 and now.min == 0 and now.second == 0:
+    if _time.hour == 9 and _time.minute == 0 and _time.second == 0:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
-        print(f"-----------------오늘의 자동매매 시작 {now}------------------")
-        f.write(f"-----------------오늘의 자동매매 시작 {now}------------------")
-        
+        print(f"-----------------오늘의 자동매매 시작 {_time}------------------")
+        f.write(f"-----------------오늘의 자동매매 시작 {_time}------------------")
         work.start_task()
     
-    if now.hour > 15:
+    if _time.hour == 15 and _time.minute > 30:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 자동매매 종료 {now}------------------")
         f.write(f"-----------------오늘의 자동매매 종료 {now}------------------")
