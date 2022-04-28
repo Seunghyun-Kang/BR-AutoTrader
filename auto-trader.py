@@ -122,7 +122,7 @@ class AutoTradeModule:
                 time.sleep(1)
             else:
                 for stock in self.allStockHolding:
-                    if(stock['code'] == 'A' + code):
+                    if stock['code'] == ('A' + code) or stock['code'] == code:
                         print(f"---------------------------------------\n")
                         self.f.write(f"---------------------------------------\n")
                         print("매도")

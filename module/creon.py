@@ -221,6 +221,19 @@ class Creon:
         if self.orderevent_handler is not None:
             self.orderevent_handler.Unsubscribe()
             self.orderevent_handler = None
+    
+    def getDeposit(self):
+        objCpTrade = win32com.client.Dispatch('CpTrade.CpTdUtil')
+        objCpTrade.TradeInit()
+        acc = objCpTrade.AccountNumber[0] # 계좌번호
+        accFlag = objCpTrade.GoodsList(acc, 1) # 주식상품 구분
+
+        objRq = win32com.client.Dispatch("CpTrade.CpTdNew5331A")
+        objRq.SetInputValue(0, acc) # 계좌번호
+        objRq.SetInputValue(1, accFlag[0]) # 상품구분 - 주식 상품 중 첫번째
+        objRq.BlockRequest()
+        return objRq.GetHeaderValue(47) # 가능 예수금 조회
+        
 class EventHandler:
     # 실시간 조회(subscribe)는 최대 400건
 
