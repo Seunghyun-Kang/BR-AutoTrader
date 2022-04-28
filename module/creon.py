@@ -169,7 +169,53 @@ class Creon:
         self.obj_CpTrade_CpTdNew5331A.BlockRequest()
         v = self.obj_CpTrade_CpTdNew5331A.GetHeaderValue(9)
         return v
-    
+        
+    def get_holdings(self):
+        """
+        0 - (string) 계좌번호
+        1 - (string) 상품관리구분코드
+        2 - (long) 요청건수[default:14] - 최대 50개
+        3 - (string) 수익률구분코드 - ( "1" : 100% 기준, "2": 0% 기준)
+        """
+        account_no, account_gflags = self.init_trade()
+        self.obj_CpTrade_CpTd6033.SetInputValue(0, account_no)
+        self.obj_CpTrade_CpTd6033.SetInputValue(1, account_gflags[0])
+        self.obj_CpTrade_CpTd6033.SetInputValue(3, '2')
+
+        header_fields = {
+            0: '계좌명',
+            1: '결제잔고수량',
+            2: '체결잔고수량',
+            3: '총평가금액',
+            4: '평가손익',
+            6: '대출금액',
+            7: '수신개수',
+            8: '수익율',
+        }
+
+        data_fields = {
+            0: '종목명',
+            1: '신용구분',
+            2: '대출일',
+            3: '결제잔고수량',
+            4: '결제장부단가',
+            5: '전일체결수량',
+            6: '금일체결수량',
+            7: '체결잔고수량',
+            9: '평가금액',
+            10: '평가손익',
+            11: '수익률',
+            12: '종목코드',
+            13: '주문구분',
+            15: '매도가능수량',
+            16: '만기일',
+            17: '체결장부단가',
+            18: '손익단가',
+        }
+
+        result = self.request(self.obj_CpTrade_CpTd6033, data_fields, header_fields=header_fields, cntidx=7)
+        return result
+
     def get_holdingstocks(self):
         """
         보유종목
