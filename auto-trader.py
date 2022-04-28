@@ -14,7 +14,7 @@ import configparser as parser
 PRICE_PER_ORDER = 50000
 
 class AutoTradeModule:
-    def __init__(self):
+    def __init__(self, file):
         os.system('taskkill /IM coStarter*  /F  /T')
         os.system('taskkill /IM CpStart*  /F  /T')
         os.system('taskkill /IM DibServer*  /F  /T')
@@ -23,8 +23,8 @@ class AutoTradeModule:
         os.system('wmic process where "name like \'%CpStart%\'" call terminate')
         os.system('wmic process where "name like \'%DibServer%\'" call terminate')
 
-        now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
-        self.f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
+        
+        self.f = file
 
         self.creon = creon.Creon(self.f)
         properties = parser.ConfigParser()
@@ -77,6 +77,35 @@ class AutoTradeModule:
         self.f.close()
         self.conn.close()
 
+    def checkDeposit(self):
+        needMoney = 0
+        deposit = self.creon.getDeposit()
+        sellList = []
+        remain_deposit = deposit
+        for pos in range(len(self.signals)):
+            code = self.signals.values[pos][0]
+            signal_type = self.signals.values[pos][1]
+            signal_price = int(self.signals.values[pos][2])
+            num = 0
+            if signal_type == 'buy':
+                if signal_price > PRICE_PER_ORDER:
+                    num = 1
+                else:
+                    num = int(PRICE_PER_ORDER/signal_price)
+                
+                if signal_price * num > remain_deposit:
+                    print("No money in account")
+                    self.f.write("No money in account\n")
+                    needMoney = needMoney + (signal_price * num)
+                else:
+                    remain_deposit = remain_deposit - signal_price * num
+            else:
+                for stock in self.allStockHolding:
+                    if stock['code'] == ('A' + code) or stock['code'] == code:
+                        sellList.append((stock['name'], stock['holdnum']))
+                        num = stock['holdnum']
+        #얼마 필요한지 카톡 보내기 (remain_deposit)
+        #매도 예정 주식, 수량 카톡 보내기 (sellList)
 
     def start_task(self):
         print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
@@ -143,13 +172,29 @@ class AutoTradeModule:
             sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{_type}', '{item['체결수량']}', '{item['체결가격']}')"
             curs.execute(sql)
             self.conn.commit()
+
 work = None
+now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
+
 while True:
+    now = datetime.now()
+    
     if work is None: 
-        work = AutoTradeModule()
+        work = AutoTradeModule(f)
+    if now.hour == 8 and now.min == 0 and now.second == 0:
+        work.checkDeposit()
+
+    if now.hour == 9 and now.min == 0 and now.second == 0:
+        now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+        print(f"-----------------오늘의 자동매매 시작 {now}------------------")
+        f.write(f"-----------------오늘의 자동매매 시작 {now}------------------")
+        
         work.start_task()
     
-    now = datetime.now()
     if now.hour > 15:
-        print("-----------------오늘의 자동매매 종료------------------")
+        now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+        print(f"-----------------오늘의 자동매매 종료 {now}------------------")
+        f.write(f"-----------------오늘의 자동매매 종료 {now}------------------")
         break
+
