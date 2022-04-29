@@ -206,6 +206,12 @@ work.checkDeposit()
 
 while True:
     _time = datetime.now()
+    _weekday = datetime.today().weekday()
+    
+    if _weekday == 5 or _weekday == 6:
+        print(f"-----------------오늘은 노는날 {_time}------------------")
+        f.write(f"-----------------오늘은 노는날 {_time}------------------")
+        break
 
     if _time.hour == 9 and isDone == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
@@ -214,7 +220,6 @@ while True:
         work.start_task()
         isDone = True
 
-    
     if _time.hour == 15 and _time.minute > 30:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 자동매매 종료 {now}------------------")
