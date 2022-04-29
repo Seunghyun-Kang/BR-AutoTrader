@@ -133,12 +133,16 @@ class Creon:
         self.file.write(f'주문->>>>> {code} - {action} - {result}\n')
         if result != 0:
             print('order request failed.', file=sys.stderr)
-            self.file.write(f'RESULT {code} 주문 요청 실패!!!\n')
+            self.file.write(f'RESULT {code} 주문 요청 실패!!! 1초 후 재요청합니다.\n')
+            time.sleep(1)
+            self.order(action, code, amount)
         status = self.obj_CpTrade_CpTd0311.GetDibStatus()
         msg = self.obj_CpTrade_CpTd0311.GetDibMsg1()
         if status != 0:
             print('order failed. {}'.format(msg), file=sys.stderr)
-            self.file.write(f'STATUS {code} 주문 요청 실패!!!\n\n')
+            self.file.write(f'STATUS {code} 주문 요청 실패!!! 1초 후 재요청합니다.\n\n')
+            time.sleep(1)
+            self.order(action, code, amount)
 
     def buy(self, code, amount):
         return self.order('2', code, amount)
