@@ -170,7 +170,7 @@ class AutoTradeModule:
                 self.f.write(f"목표 매수 수량: {num}\n")
                 print(f"---------------------------------------\n")
                 self.f.write(f"---------------------------------------\n\n")
-                self.creon.buy(code, num)
+                self.creon.buy(code, num, 0)
                 time.sleep(1.5)
             elif signal_type == 'sell':
                 for stock in self.allStockHolding:
@@ -180,7 +180,7 @@ class AutoTradeModule:
                         print("매도")
                         self.f.write(f"매도\n")
                         num = stock['매도가능수량']
-                        self.creon.sell(code, num)
+                        self.creon.sell(code, num, 0)
                         time.sleep(1.5)
 
     def callback(self, item):

@@ -119,7 +119,7 @@ class Creon:
         account_gflags = self.obj_CpTrade_CpTdUtil.GoodsList(account_no, 1)  # 주식상품 구분
         return account_no, account_gflags
 
-    def order(self, action, code, amount):
+    def order(self, action, code, amount, try_num):
         if not code.startswith('A'):
             code = 'A' + code
         account_no, account_gflags = self.init_trade()
@@ -133,22 +133,28 @@ class Creon:
         self.file.write(f'주문->>>>> {code} - {action} - {result}\n')
         if result != 0:
             print('order request failed.', file=sys.stderr)
-            self.file.write(f'RESULT {code} 주문 요청 실패!!! 1초 후 재요청합니다.\n')
-            time.sleep(1)
-            self.order(action, code, amount)
+            self.file.write(f'RESULT {code} 주문 {try_num+1}번째 요청 실패!!!\n\n')
+            if try_num < 5:
+                self.file.write(f'1초 후 재요청합니다.\n')
+                time.sleep(1)
+                try_num = try_num + 1
+                self.order(action, code, amount, try_num)
         status = self.obj_CpTrade_CpTd0311.GetDibStatus()
         msg = self.obj_CpTrade_CpTd0311.GetDibMsg1()
         if status != 0:
             print('order failed. {}'.format(msg), file=sys.stderr)
-            self.file.write(f'STATUS {code} 주문 요청 실패!!! 1초 후 재요청합니다.\n\n')
-            time.sleep(1)
-            self.order(action, code, amount)
+            self.file.write(f'STATUS {code} 주문 {try_num+1}번째 요청 실패!!!\n\n')
+            if try_num < 5:
+                self.file.write(f'1초 후 재요청합니다.\n\n')
+                time.sleep(1)
+                try_num = try_num + 1
+                self.order(action, code, amount, try_num)
 
-    def buy(self, code, amount):
-        return self.order('2', code, amount)
+    def buy(self, code, amount, try_num):
+        return self.order('2', code, amount, try_num)
 
-    def sell(self, code, amount):
-        return self.order('1', code, amount)
+    def sell(self, code, amount, try_num):
+        return self.order('1', code, amount, try_num)
 
     def get_stock_info(self, code):
         if not code.startswith('A'):
