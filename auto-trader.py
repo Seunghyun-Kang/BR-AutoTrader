@@ -95,7 +95,9 @@ class AutoTradeModule:
         self.f.write(f"********************예수금 잔고: {self.remain_deposit}********************\n\n")
         print(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
         self.f.write(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
-        
+    
+        self.creon.subscribe_orderevent(self.callback)
+    
     def checkDeposit(self):
         needMoney = 0
         sellList = []
@@ -131,9 +133,6 @@ class AutoTradeModule:
         #매도 예정 주식, 수량 카톡 보내기 (sellList)
 
     def start_task(self):
-        print(f"현재 계좌 잔고:: {self.creon.get_balance()}")
-        self.f.write(f"현재 계좌 잔고:: {self.creon.get_balance()}\n")
-        self.creon.subscribe_orderevent(self.callback)
 
         for pos in range(len(self.signals)):
             print(f"****************************************")
