@@ -11,8 +11,6 @@ from datetime import timedelta, datetime
 from pywinauto import application
 import configparser as parser
 
-PRICE_PER_ORDER = 50000
-
 class AutoTradeModule:
     def __init__(self, file):
         os.system('taskkill /IM coStarter*  /F  /T')
@@ -34,6 +32,7 @@ class AutoTradeModule:
         
         self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
 
+        self.PRICE_PER_ORDER = 50000
         self.allStockHolding = [] 
         self.remain_deposit = 0
         self.accout_money = self.remain_deposit
@@ -86,7 +85,7 @@ class AutoTradeModule:
         for item in self.allStockHolding:
             self.accout_money = self.accout_money + item['평가금액']
 
-        PRICE_PER_ORDER = self.accout_money / 90
+        self.PRICE_PER_ORDER = self.accout_money / 90
         print("전체 계좌 잔고: ")
         print(self.accout_money)
         print("예수금 잔고: ")
@@ -94,8 +93,8 @@ class AutoTradeModule:
         
         self.f.write(f"********************전체 계좌 잔고: {self.accout_money}********************\n\n")
         self.f.write(f"********************예수금 잔고: {self.remain_deposit}********************\n\n")
-        print(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
-        self.f.write(f"********************오늘의 매매 단위 가격 {PRICE_PER_ORDER}********************\n\n")
+        print(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
+        self.f.write(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
         
     def checkDeposit(self):
         needMoney = 0
@@ -107,10 +106,10 @@ class AutoTradeModule:
             signal_price = int(self.signals.values[pos][2])
             num = 0
             if signal_type == 'buy':
-                if signal_price > PRICE_PER_ORDER:
+                if signal_price > self.PRICE_PER_ORDER:
                     num = 1
                 else:
-                    num = int(PRICE_PER_ORDER/signal_price)
+                    num = int(self.PRICE_PER_ORDER/signal_price)
                 
                 if signal_price * num > remain_deposit:
                     print("No money in account")
@@ -157,10 +156,10 @@ class AutoTradeModule:
             self.f.write(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}\n")
             num = 0
             if signal_type == 'buy':
-                if signal_price > PRICE_PER_ORDER:
+                if signal_price > self.PRICE_PER_ORDER:
                     num = 1
                 else:
-                    num = int(PRICE_PER_ORDER/signal_price)
+                    num = int(self.PRICE_PER_ORDER/signal_price)
                 
                 if signal_price * num > self.creon.get_balance():
                     print("No money in account")
@@ -172,8 +171,8 @@ class AutoTradeModule:
                 print(f"---------------------------------------\n")
                 self.f.write(f"---------------------------------------\n\n")
                 self.creon.buy(code, num)
-                time.sleep(1)
-            else:
+                time.sleep(1.5)
+            elif signal_type == 'sell':
                 for stock in self.allStockHolding:
                     if stock['종목코드'] == ('A' + code):
                         print(f"---------------------------------------\n")
@@ -182,7 +181,7 @@ class AutoTradeModule:
                         self.f.write(f"매도\n")
                         num = stock['매도가능수량']
                         self.creon.sell(code, num)
-                        time.sleep(1)
+                        time.sleep(1.5)
 
     def callback(self, item):
         print(f"callbakc recieved:: {item}")
@@ -197,23 +196,24 @@ class AutoTradeModule:
             curs.execute(sql)
             self.conn.commit()
 
-work = None
+
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
 work = AutoTradeModule(f)
+isDone = False
+work.checkTodayOrder()
+work.checkDeposit()
 
 while True:
     _time = datetime.now()
 
-    if _time.hour == 8 and _time.minute == 30 and _time.second == 0:
-        work.checkTodayOrder()
-        work.checkDeposit()
-
-    if _time.hour == 9 and _time.minute == 0 and _time.second == 0:
+    if _time.hour == 9 and isDone == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 자동매매 시작 {_time}------------------")
         f.write(f"-----------------오늘의 자동매매 시작 {_time}------------------")
         work.start_task()
+        isDone = True
+
     
     if _time.hour == 15 and _time.minute > 30:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
