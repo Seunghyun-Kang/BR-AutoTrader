@@ -10,6 +10,7 @@ import time
 from datetime import timedelta, datetime
 from pywinauto import application
 import configparser as parser
+from pytimekr import pytimekr
 
 class AutoTradeModule:
     def __init__(self, file):
@@ -203,10 +204,25 @@ isDone = False
 work.checkTodayOrder()
 work.checkDeposit()
 
+kr_holidays = pytimekr.holidays(year=datetime.now().year)
+red_days_chuseok = pytimekr.red_days(pytimekr.chuseok(year=datetime.now().year))
+red_days_lunar_newyear = pytimekr.red_days(pytimekr.lunar_newyear(year=datetime.now().year))
+
+for red_days in red_days_chuseok:
+    kr_holidays.append(red_days)
+for red_days in red_days_lunar_newyear:
+    kr_holidays.append(red_days)
+
 while True:
     _time = datetime.now()
     _weekday = datetime.today().weekday()
     
+    for red_day in kr_holidays:
+        if _time.month == red_day.month and _time.day == red_day.day:
+            print(f"-----------------오늘은 노는날 {_time}------------------")
+            f.write(f"-----------------오늘은 노는날 {_time}------------------")
+            break
+
     if _weekday == 5 or _weekday == 6:
         print(f"-----------------오늘은 노는날 {_time}------------------")
         f.write(f"-----------------오늘은 노는날 {_time}------------------")
