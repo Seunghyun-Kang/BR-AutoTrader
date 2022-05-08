@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import pymysql
 import pandas as pd
@@ -5,6 +6,7 @@ import pandas as pd
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from module import creon
+from module import kakao
 import json
 import time
 from datetime import timedelta, datetime
@@ -24,6 +26,7 @@ class AutoTradeModule:
 
         self.f = file
 
+        self.kakao = kakao.Kakao()
         self.creon = creon.Creon(self.f)
         properties = parser.ConfigParser()
         properties.read('./config.ini')
@@ -39,12 +42,13 @@ class AutoTradeModule:
         self.accout_money = self.remain_deposit
         
         if datetime.today().weekday() == 0:
-            signal_day = (datetime.today() - timedelta(2)).strftime("%Y-%m-%d")
-        elif datetime.today().weekday() == 5 or datetime.today().weekday() == 6:
-            return
+            self.signal_day = (datetime.today() - timedelta(3)).strftime("%Y-%m-%d")
+        elif datetime.today().weekday() == 6:
+            print("일요일!")
+            self.signal_day = (datetime.today() - timedelta(2)).strftime("%Y-%m-%d")
         else:
-            signal_day = (datetime.today() - timedelta(1)).strftime("%Y-%m-%d")
-        print(f"Signal day is : {signal_day}")
+            self.signal_day = (datetime.today() - timedelta(1)).strftime("%Y-%m-%d")
+        print(f"Signal day is : {self.signal_day}")
 
         properties = parser.ConfigParser()
         properties.read('./config.ini')
@@ -70,9 +74,20 @@ class AutoTradeModule:
         self.conn.commit()
 
         with self.conn.cursor() as curs :
-            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{signal_day}' and valid = 'valid'"
+            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{self.signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
+        
+        self.company = {}
+        with self.conn.cursor() as curs :
+            sql = f"select code, company from company_info"
+            curs.execute(sql) 
+            companyPD = pd.DataFrame(curs.fetchall())
+            
+            for pos in range(len(companyPD)):
+                code = companyPD.values[pos][0]
+                company = companyPD.values[pos][1]
+                self.company[code] = company
 
     def __del__(self):
         self.f.close()
@@ -96,12 +111,16 @@ class AutoTradeModule:
         self.f.write(f"********************예수금 잔고: {self.remain_deposit}********************\n\n")
         print(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
         self.f.write(f"********************오늘의 매매 단위 가격 {self.PRICE_PER_ORDER}********************\n\n")
-    
+        self.kakao.send_msg_to_me(f"-----------------\n전체 계좌 잔고\n{self.accout_money} 원\n------------------\n-----------------\n오늘의 매매 단위 가격\n{math.trunc(self.PRICE_PER_ORDER)} 원\n------------------")
+        
         self.creon.subscribe_orderevent(self.callback)
     
     def checkDeposit(self):
         needMoney = 0
         sellList = []
+        buyList = []
+        self.kakao.send_msg_to_me(f"-----------------\n오늘의 거래 분석 {self.signal_day}\n총 {len(self.signals)}건\n------------------")
+        
         remain_deposit = self.remain_deposit
         for pos in range(len(self.signals)):
             code = self.signals.values[pos][0]
@@ -117,8 +136,11 @@ class AutoTradeModule:
                 if signal_price * num > remain_deposit:
                     print("No money in account")
                     self.f.write("No money in account\n")
+                    
                     needMoney = needMoney + (signal_price * num)
+                    self.kakao.send_msg_to_me(f"-----------------\n크레온 계좌 잔액 부족\n{needMoney}\n------------------")
                 else:
+                    buyList.append((code, signal_price))
                     remain_deposit = remain_deposit - signal_price * num
             else:
                 for stock in self.allStockHolding:
@@ -127,12 +149,24 @@ class AutoTradeModule:
                         num = stock['매도가능수량']
                         profit = stock['평가손익']
                         profit_rate = stock['수익률']
-                        sellList.append((stock['종목명'], profit))
+                        sellList.append((stock['종목명'], profit, profit_rate))
                         print(f"*****************매도 예정 {stock['종목명']} {profit} 이익***********************\n")
                         self.f.write(f"*****************매도 예정 {stock['종목명']} {profit} 이익***********************\n")
-        #얼마 필요한지 카톡 보내기 (remain_deposit)
-        #매도 예정 주식, 수량 카톡 보내기 (sellList)
-
+        
+        # buy_text = ""
+        for i, (code, price) in enumerate(buyList):
+            # buy_text = buy_text + f"{i+1}. 매수: {code} 종목, {price}원\n"
+            if i == 0:
+                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매수 예정\n------------------\n{i+1}. 매수: {code} 종목, {price}원\n")
+            else:
+                self.kakao.send_msg_to_me(f"{i+1}. 매수: {self.company[code]}, {price}원, {math.trunc(self.PRICE_PER_ORDER/price)}개\n")
+        # buy_text = buy_text + "\n\n"
+        for i, (code, price, profit) in enumerate(sellList):
+            # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
+            if i == 0:
+                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {code} 종목, {price}원\n")
+            else:
+                self.kakao.send_msg_to_me(f"{i+1}. 매도: {code} 종목, 손익 {price}, 수익률 {profit}\n")
     def start_task(self):
 
         for pos in range(len(self.signals)):
@@ -188,16 +222,26 @@ class AutoTradeModule:
         _hash = item['주문번호']
         _date = datetime.today().strftime("%Y-%m-%d")
         _type = "buy"
+        code = item['종목코드'].replace("A","")
         if item['매매구분코드'] == "1" or item['매매구분코드'] == 1:
             _type = "sell"
 
         with self.conn.cursor() as curs:
-            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{item['종목코드']}', '{_date}', '{_type}', '{item['체결수량']}', '{item['체결가격']}')"
+            if _type == "buy":
+                self.kakao.send_msg_to_me(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {item['체결가격']}\n")
+            else:
+                self.kakao.send_msg_to_me(f"매도 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {item['체결가격']}\n")
+
+            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{code}', '{_date}', '{_type}', '{item['체결수량']}', '{item['체결가격']}')"
             curs.execute(sql)
             self.conn.commit()
 
 
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
+
+kakao_module = kakao.Kakao()
+kakao_module.send_msg_to_me(f'{now}\nBR auto-trader 가동되었습니다.')
+
 f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
 work = AutoTradeModule(f)
 isDone = False
@@ -232,6 +276,8 @@ while True:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 자동매매 시작 {_time}------------------")
         f.write(f"-----------------오늘의 자동매매 시작 {_time}------------------")
+        kakao_module.send_msg_to_me(f"-----------------\n오늘의 자동매매 시작\n{_time}\n------------------")
+
         work.start_task()
         isDone = True
 
@@ -239,5 +285,7 @@ while True:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 자동매매 종료 {now}------------------")
         f.write(f"-----------------오늘의 자동매매 종료 {now}------------------")
+        kakao_module.send_msg_to_me(f"-----------------\n오늘의 자동매매 종료\n{now}\n------------------")
+
         break
 
