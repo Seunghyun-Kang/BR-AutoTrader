@@ -3,25 +3,27 @@ import requests
 import configparser as parser
 import datetime
 from datetime import date
+from pathlib import Path
 
 class Kakao:
     def __init__(self):
         today = date.today()
         properties = parser.ConfigParser()
-        properties.read('../config.ini')
+        
+        fpath = Path('config.ini').absolute()
+        properties.read(fpath)
         
         self.api_key = properties['KAKAO_INFO']['api_key']
         self.code = properties['KAKAO_INFO']['code']
 
         try:
-            with open('kakao_token.json', 'r') as fp:
+            fpath = Path('kakao_token.json').absolute()
+            with open(fpath, 'r') as fp:
                 print(f"카카오 토큰 있음 - {today}")
                 json_data = json.load(fp)
                 expire_resfresh = json_data['refresh_token_expires_in']
                 expire_accesstoken = json_data['expires_in']
-                print(f"@@@@@@@expire_resfresh: {date.fromtimestamp(expire_resfresh)}")
-                print(f"@@@@@@@expire_accesstoken: {date.fromtimestamp(expire_accesstoken)}")
-        
+                
         except FileNotFoundError:
             self.get_request_token()
 
@@ -43,9 +45,11 @@ class Kakao:
         print(tokens)
 
         try:
-            with open("kakao_token.json", "w") as fp:
+            fpath = Path('kakao_token.json').absolute()
+            
+            with open(fpath, "w") as fp:
                 json.dump(tokens, fp)
-            with open("kakao_token.json", "r") as fp: 
+            with open(fpath, "r") as fp: 
                 ts = json.load(fp) 
                 self.refresh_token = ts["refresh_token"]
         except FileNotFoundError:
@@ -55,7 +59,9 @@ class Kakao:
     def get_refresh_token(self):
         url = "https://kauth.kakao.com/oauth/token"
 
-        with open("kakao_token.json", "r") as fp:
+        fpath = Path('kakao_token.json').absolute()
+            
+        with open(fpath, "r") as fp:
             json_data = json.load(fp)
             refresh_token = json_data['refresh_token']
 
@@ -67,7 +73,7 @@ class Kakao:
         
         response = requests.post(url, data=data)
         tokens = response.json()
-        print(tokens)
+        # print(tokens)
 
         try:
             self.access_token = tokens['access_token']
@@ -117,10 +123,10 @@ class Kakao:
 
         result = json.loads(requests.get(url, headers=header).text)
         friends_list = result.get("elements")
-        print(result)
+        # print(result)
         print("친구 목록::::")
         print(friends_list)
         return friends_list
 
-a = Kakao()
-a.send_msg_to_me('테스트입니다')
+# a = Kakao()
+# a.send_msg_to_me('테스트입니다')
