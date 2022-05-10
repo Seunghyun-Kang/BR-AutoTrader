@@ -88,6 +88,23 @@ class AutoTradeModule:
                 code = companyPD.values[pos][0]
                 company = companyPD.values[pos][1]
                 self.company[code] = company
+        #22.05.10
+        self.ignore_code = [
+            '003580',
+            '020120',
+            '048910',
+            '063080',
+            '204840',
+            '067160',
+            '101730',
+            '104200',
+            '112040',
+            '205470',
+            '276040',
+            '289220',
+            '293780',
+            '294570'
+        ] 
 
     def __del__(self):
         self.f.close()
@@ -123,11 +140,20 @@ class AutoTradeModule:
         
         remain_deposit = self.remain_deposit
         for pos in range(len(self.signals)):
+            ignore_flag = False
             code = self.signals.values[pos][0]
             signal_type = self.signals.values[pos][1]
             signal_price = int(self.signals.values[pos][2])
             num = 0
+            
+            for ignore_code in self.ignore_code:
+                if code == ignore_code:
+                    self.kakao.send_msg_to_me(f"-----------------\n거래 무시 예정 \n{self.company[code]}\n------------------")
+                    ignore_flag = True
+                    continue
             if signal_type == 'buy':
+                if ignore_flag == True:
+                    continue
                 if signal_price > self.PRICE_PER_ORDER:
                     num = 1
                 else:
@@ -190,6 +216,11 @@ class AutoTradeModule:
             self.f.write(f"현재 시장 상태 :: {self.creon.get_stock_info(code)}\n")
             num = 0
             if signal_type == 'buy':
+                for ignore_code in self.ignore_code:
+                    if code == ignore_code:
+                        self.kakao.send_msg_to_me(f"-----------------\n거래 무시 \n{self.company[code]}\n------------------")
+                        continue
+
                 if signal_price > self.PRICE_PER_ORDER:
                     num = 1
                 else:
