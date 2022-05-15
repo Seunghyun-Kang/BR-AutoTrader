@@ -101,7 +101,7 @@ class AutoTradeModule:
         for item in self.allStockHolding:
             self.accout_money = self.accout_money + item['평가금액']
 
-        self.PRICE_PER_ORDER = self.accout_money / 90
+        self.PRICE_PER_ORDER = self.accout_money / 500
         print("전체 계좌 잔고: ")
         print(self.accout_money)
         print("예수금 잔고: ")
@@ -157,14 +157,14 @@ class AutoTradeModule:
         for i, (code, price) in enumerate(buyList):
             # buy_text = buy_text + f"{i+1}. 매수: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매수 예정\n------------------\n{i+1}. 매수: {code} 종목, {price}원\n")
+                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매수 예정\n------------------\n{i+1}. 매수: {code} 종목, {price}원, {math.trunc(self.PRICE_PER_ORDER/price)}개\n")
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매수: {self.company[code]}, {price}원, {math.trunc(self.PRICE_PER_ORDER/price)}개\n")
         # buy_text = buy_text + "\n\n"
         for i, (code, price, profit) in enumerate(sellList):
             # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {code} 종목, {price}원\n")
+                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {code} 종목, 손익 {price}, 수익률 {profit}\n")
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매도: {code} 종목, 손익 {price}, 수익률 {profit}\n")
     def start_task(self):
@@ -226,6 +226,8 @@ class AutoTradeModule:
         if item['매매구분코드'] == "1" or item['매매구분코드'] == 1:
             _type = "sell"
 
+        if item['체결가격'] == 0:
+            break
         with self.conn.cursor() as curs:
             if _type == "buy":
                 self.kakao.send_msg_to_me(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {item['체결가격']}\n")
