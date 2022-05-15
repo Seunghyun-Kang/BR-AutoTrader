@@ -227,7 +227,7 @@ class AutoTradeModule:
             _type = "sell"
 
         if item['체결가격'] == 0:
-            break
+            return
         with self.conn.cursor() as curs:
             if _type == "buy":
                 self.kakao.send_msg_to_me(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {item['체결가격']}\n")
