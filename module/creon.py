@@ -155,6 +155,15 @@ class Creon:
 
     def sell(self, code, amount, try_num):
         return self.order('1', code, amount, try_num)
+    
+    def getICR(self, code):
+        if not code.startswith('A'):
+            code = 'A' + code
+        self.obj_CpSysDib_MarketEye.SetInputValue(0, 94)
+        self.obj_CpSysDib_MarketEye.SetInputValue(1, code)
+        self.obj_CpSysDib_MarketEye.BlockRequest()
+
+        return self.obj_CpSysDib_MarketEye.GetDataValue(0,0)
 
     def get_stock_info(self, code):
         if not code.startswith('A'):
@@ -180,6 +189,15 @@ class Creon:
         v = self.obj_CpTrade_CpTdNew5331A.GetHeaderValue(9)
         return v
         
+    def get_stockstatus(self, code):
+        if not code.startswith('A'):
+            code = 'A' + code
+        return {
+            'control': self.obj_CpUtil_CpCodeMgr.GetStockControlKind(code),
+            'supervision': self.obj_CpUtil_CpCodeMgr.GetStockSupervisionKind(code),
+            'status': self.obj_CpUtil_CpCodeMgr.GetStockStatusKind(code),
+        }
+
     def get_holdings(self):
         """
         0 - (string) 계좌번호
