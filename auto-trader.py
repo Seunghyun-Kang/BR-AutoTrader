@@ -90,20 +90,21 @@ class AutoTradeModule:
                 self.company[code] = company
         #22.05.10
         self.ignore_code = [
-            '003580',
-            '020120',
-            '048910',
-            '063080',
-            '204840',
-            '067160',
-            '101730',
-            '104200',
-            '112040',
-            '205470',
-            '276040',
-            '289220',
-            '293780',
-            '294570'
+        #     '003580', #HLB글로벌
+        #     # '020120', #키다리 스튜디오
+        #     '009810', #플레이그램
+        #     '011000', #진원생명과학
+        #     '063080', #컴투스홀딩스
+        #     '067160', #아프리카tv
+        #     '101730', #위메이드맥스
+        #     '104200', #NHN벅스
+        #     '142760', #비엘
+        #     '206560', #덱스터
+        #     '227100', #에이치앤비디자인
+        #     '256840', #한국비엔씨
+        #     '276040', #스코넥
+        #     '289220', #자이언트스텝
+        #     '060250',
         ] 
 
     def __del__(self):
@@ -112,6 +113,40 @@ class AutoTradeModule:
 
     def checkTodayOrder(self):
         self.allStockHolding = self.creon.get_holdings()['data']
+        # print(self.allStockHolding)
+
+        for pos in range(len(self.signals)):
+            code = self.signals.values[pos][0]
+            signal_type = self.signals.values[pos][1]
+            checkStatus = self.creon.get_stockstatus(code)
+            ICR = print(self.company[code])
+            
+            self.creon.getICR(code)
+            
+            if signal_type == 'buy':
+                if checkStatus['control'] != 0 or checkStatus['supervision'] != 0 or checkStatus['status'] != 0:
+                    self.kakao.send_msg_to_me(f"거래 위험 종목, 매수 무시 예정-------------{self.company[code]}")
+                    print(f"거래 위험 종목 -------------{self.company[code]}")
+                    print(self.creon.get_stockstatus(code))
+                    self.ignore_code.append(code)
+
+                if ICR < 0.0:
+                    self.kakao.send_msg_to_me(f"이자보상배율 0 이하, 매수 무시 예정-------------{self.company[code]}")
+                    print(f"이자보상배율 0 이하 -------------{self.company[code]}")
+                    self.ignore_code.append(code)
+
+                for stock in self.allStockHolding:
+                    if stock['종목코드'] == 'A'+code and stock['수익률'] > -10:
+                        print(f"-10% 이상, 매수 무시 예정----{self.company[code]}")
+                        self.kakao.send_msg_to_me(f"-10% 이상, 매수 무시 예정----{self.company[code]}")
+                        self.ignore_code.append(code)
+
+        for holding in self.allStockHolding:
+            checkStatus = self.creon.get_stockstatus(holding['종목코드'])
+            if checkStatus['control'] != 0 or checkStatus['supervision'] != 0 or checkStatus['status'] != 0:
+                print(holding)
+                self.kakao.send_msg_to_me(f"!!!!!!!!!!!보유 주식 중 거래 위험 경고 발생, 조치 필요-------{holding['종목명']}({holding['종목코드']})--수익률{holding['수익률']}------!!!!!!!!")
+
         self.remain_deposit = self.creon.get_balance()
         self.accout_money = self.remain_deposit
 
@@ -128,7 +163,7 @@ class AutoTradeModule:
         self.f.write(f"********************예수금 잔고: { format(self.remain_deposit, ',')}********************\n\n")
         print(f"********************오늘의 매매 단위 가격 {format(self.PRICE_PER_ORDER, ',')}********************\n\n")
         self.f.write(f"********************오늘의 매매 단위 가격 {format(self.PRICE_PER_ORDER, ',')}********************\n\n")
-        self.kakao.send_msg_to_me(f"-----------------\n전체 계좌 잔고\n{format(self.accout_money, ',')} 원\n------------------\n-----------------\n오늘의 매매 단위 가격\n{format(math.trunc(self.PRICE_PER_ORDER), ',')} 원\n------------------")
+        self.kakao.send_msg_to_me(f"-----------------\n전체 계좌 잔고\n{format(self.accout_money, ',')} 원\n------------------\n------------예수금 잔고: { format(self.remain_deposit, ',')} 원-------------\n-----------------\n오늘의 매매 단위 가격\n{format(math.trunc(self.PRICE_PER_ORDER), ',')} 원\n------------------")
         
         self.creon.subscribe_orderevent(self.callback)
     
@@ -148,7 +183,6 @@ class AutoTradeModule:
             
             for ignore_code in self.ignore_code:
                 if code == ignore_code:
-                    self.kakao.send_msg_to_me(f"-----------------\n거래 무시 예정 \n{self.company[code]}\n------------------")
                     ignore_flag = True
                     continue
             if signal_type == 'buy':
@@ -187,15 +221,16 @@ class AutoTradeModule:
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매수: {self.company[code]} - {format(price, ',')}원 - {math.trunc(self.PRICE_PER_ORDER/price)}개\n")
         # buy_text = buy_text + "\n\n"
-        for i, (code, price, profit) in enumerate(sellList):
+        for i, (stock_name, price, profit) in enumerate(sellList):
             # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {self.company[code]} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
+                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {stock_name} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
             else:
-                self.kakao.send_msg_to_me(f"{i+1}. 매도: {code} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
+                self.kakao.send_msg_to_me(f"{i+1}. 매도: {stock_name} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
     def start_task(self):
 
         for pos in range(len(self.signals)):
+            ignore_flag = False
             print(f"****************************************")
             self.f.write(f"****************************************\n")
             print(f"{pos + 1} 번째 주문 --------------------")
@@ -218,9 +253,11 @@ class AutoTradeModule:
             if signal_type == 'buy':
                 for ignore_code in self.ignore_code:
                     if code == ignore_code:
+                        ignore_flag = True
                         self.kakao.send_msg_to_me(f"-----------------\n거래 무시 \n{self.company[code]}\n------------------")
                         continue
-
+                if ignore_flag:
+                    continue
                 if signal_price > self.PRICE_PER_ORDER:
                     num = 1
                 else:
@@ -296,11 +333,13 @@ while True:
         if _time.month == red_day.month and _time.day == red_day.day:
             print(f"-----------------오늘은 노는날 {_time}------------------")
             f.write(f"-----------------오늘은 노는날 {_time}------------------")
+            kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
             break
 
     if _weekday == 5 or _weekday == 6:
         print(f"-----------------오늘은 노는날 {_time}------------------")
         f.write(f"-----------------오늘은 노는날 {_time}------------------")
+        kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
         break
 
     if _time.hour == 9 and isDone == False:
