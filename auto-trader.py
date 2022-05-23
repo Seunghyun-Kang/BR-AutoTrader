@@ -74,10 +74,15 @@ class AutoTradeModule:
         self.conn.commit()
 
         with self.conn.cursor() as curs :
-            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{self.signal_day}' and valid = 'valid'"
+            sql = f"select code, type, close, date from signal_bollinger_reverse where date >= '{self.signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
-        
+
+        with self.conn.cursor() as curs :
+            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{self.signal_day}' and valid = 'valid'"
+            curs.execute(sql) 
+            self.signals_origin = pd.DataFrame(curs.fetchall())
+
         self.company = {}
         with self.conn.cursor() as curs :
             sql = f"select code, company from company_info"
@@ -90,21 +95,8 @@ class AutoTradeModule:
                 self.company[code] = company
         #22.05.10
         self.ignore_code = [
-        #     '003580', #HLB글로벌
-        #     # '020120', #키다리 스튜디오
-        #     '009810', #플레이그램
-        #     '011000', #진원생명과학
-        #     '063080', #컴투스홀딩스
-        #     '067160', #아프리카tv
-        #     '101730', #위메이드맥스
-        #     '104200', #NHN벅스
-        #     '142760', #비엘
-        #     '206560', #덱스터
-        #     '227100', #에이치앤비디자인
-        #     '256840', #한국비엔씨
-        #     '276040', #스코넥
-        #     '289220', #자이언트스텝
-        #     '060250',
+            '228670',
+            '149980'
         ] 
 
     def __del__(self):
@@ -119,9 +111,9 @@ class AutoTradeModule:
             code = self.signals.values[pos][0]
             signal_type = self.signals.values[pos][1]
             checkStatus = self.creon.get_stockstatus(code)
-            ICR = print(self.company[code])
+            print(self.company[code])
             
-            self.creon.getICR(code)
+            ICR = self.creon.getICR(code)
             
             if signal_type == 'buy':
                 if checkStatus['control'] != 0 or checkStatus['supervision'] != 0 or checkStatus['status'] != 0:
@@ -136,9 +128,9 @@ class AutoTradeModule:
                     self.ignore_code.append(code)
 
                 for stock in self.allStockHolding:
-                    if stock['종목코드'] == 'A'+code and stock['수익률'] > -10:
-                        print(f"-10% 이상, 매수 무시 예정----{self.company[code]}")
-                        self.kakao.send_msg_to_me(f"-10% 이상, 매수 무시 예정----{self.company[code]}")
+                    if stock['종목코드'] == 'A'+code and stock['수익률'] > -20:
+                        print(f"-20% 이상, 매수 무시 예정----{self.company[code]}")
+                        self.kakao.send_msg_to_me(f"-20% 이상, 매수 무시 예정----{self.company[code]}")
                         self.ignore_code.append(code)
 
         for holding in self.allStockHolding:
@@ -153,7 +145,7 @@ class AutoTradeModule:
         for item in self.allStockHolding:
             self.accout_money = self.accout_money + item['평가금액']
 
-        self.PRICE_PER_ORDER = self.accout_money / 200
+        self.PRICE_PER_ORDER = self.accout_money / 30  # -> 50 : 100만원
         print("전체 계좌 잔고: ")
         print(self.accout_money)
         print("예수금 잔고: ")
@@ -172,8 +164,25 @@ class AutoTradeModule:
         sellList = []
         buyList = []
         self.kakao.send_msg_to_me(f"-----------------\n오늘의 거래 분석 {self.signal_day} 일자 신호\n총 {len(self.signals)}건\n------------------")
-        
         remain_deposit = self.remain_deposit
+        
+        for pos in range(len(self.signals_origin)):
+            ignore_flag = False
+            code_origin = self.signals_origin.values[pos][0]
+            signal_type_origin = self.signals_origin.values[pos][1]
+            num = 0
+            if signal_type_origin == 'sell':
+                for stock in self.allStockHolding:
+                    if stock['종목코드'] == ('A' + code_origin):
+                        
+                        num = stock['매도가능수량']
+                        profit = stock['평가손익']
+                        profit_rate = stock['수익률']
+                        sellList.append((stock['종목명'], profit, profit_rate))
+                        print(f"*****************오리진 매도 예정 {stock['종목명']} {profit} 이익***********************\n")
+                        self.f.write(f"*****************오리진 매도 예정 {stock['종목명']} {profit} 이익***********************\n")
+                        self.kakao.send_msg_to_me(f"*****************오리진 매도 예정 {stock['종목명']} {profit} 이익***********************\n")
+
         for pos in range(len(self.signals)):
             ignore_flag = False
             code = self.signals.values[pos][0]
@@ -184,7 +193,7 @@ class AutoTradeModule:
             for ignore_code in self.ignore_code:
                 if code == ignore_code:
                     ignore_flag = True
-                    continue
+                    break
             if signal_type == 'buy':
                 if ignore_flag == True:
                     continue
@@ -203,6 +212,8 @@ class AutoTradeModule:
                     buyList.append((code, signal_price))
                     remain_deposit = remain_deposit - signal_price * num
             else:
+                if ignore_flag == True:
+                    continue
                 for stock in self.allStockHolding:
                     if stock['종목코드'] == ('A' + code):
                         
@@ -227,7 +238,22 @@ class AutoTradeModule:
                 self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {stock_name} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매도: {stock_name} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
+    
     def start_task(self):
+        for pos in range(len(self.signals_origin)):
+            code_origin = self.signals_origin.values[pos][0]
+            signal_type_origin = self.signals_origin.values[pos][1]
+        
+            if signal_type_origin == 'sell':
+                for stock in self.allStockHolding:
+                    if stock['종목코드'] == ('A' + code_origin):
+                        print(f"---------------------------------------\n")
+                        self.f.write(f"---------------------------------------\n")
+                        print("매도")
+                        self.f.write(f"오리진 매도\n")
+                        num = stock['매도가능수량']
+                        self.creon.sell(code_origin, num, 0)
+                        time.sleep(1.5)
 
         for pos in range(len(self.signals)):
             ignore_flag = False
@@ -296,15 +322,18 @@ class AutoTradeModule:
 
         if item['체결가격'] == 0:
             return
-        with self.conn.cursor() as curs:
-            if _type == "buy":
-                self.kakao.send_msg_to_me(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
-            else:
-                self.kakao.send_msg_to_me(f"매도 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
+        try:
+            with self.conn.cursor() as curs:
+                if _type == "buy":
+                    self.kakao.send_msg_to_me(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
+                else:
+                    self.kakao.send_msg_to_me(f"매도 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
 
-            sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{code}', '{_date}', '{_type}', '{item['체결수량']}', '{format(item['체결가격'], ',')}')"
-            curs.execute(sql)
-            self.conn.commit()
+                sql = f"REPLACE INTO trade_history VALUES ('{_hash}', '{self.creon_id}', '{code}', '{_date}', '{_type}', '{item['체결수량']}', '{format(item['체결가격'], ',')}')"
+                curs.execute(sql)
+                self.conn.commit()
+        except:
+            print("DB REPLACE 에러 발생")
 
 
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
@@ -327,22 +356,24 @@ for red_days in red_days_chuseok:
 for red_days in red_days_lunar_newyear:
     kr_holidays.append(red_days)
 
-while True:
-    _time = datetime.now()
-    _weekday = datetime.today().weekday()
-    
-    for red_day in kr_holidays:
-        if _time.month == red_day.month and _time.day == red_day.day:
-            print(f"-----------------오늘은 노는날 {_time}------------------")
-            f.write(f"-----------------오늘은 노는날 {_time}------------------")
-            kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
-            break
+_weekday = datetime.today().weekday()
+_time = datetime.now()
 
-    if _weekday == 5 or _weekday == 6:
+for red_day in kr_holidays:
+    if _time.month == red_day.month and _time.day == red_day.day:
         print(f"-----------------오늘은 노는날 {_time}------------------")
         f.write(f"-----------------오늘은 노는날 {_time}------------------")
         kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
-        break
+        sys.exit()
+
+if _weekday == 5 or _weekday == 6:
+    print(f"-----------------오늘은 노는날 {_time}------------------")
+    f.write(f"-----------------오늘은 노는날 {_time}------------------")
+    kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
+    sys.exit()
+
+while True:
+    _time = datetime.now()
 
     if _time.hour == 9 and isDone == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
@@ -358,6 +389,5 @@ while True:
         print(f"-----------------오늘의 자동매매 종료 {now}------------------")
         f.write(f"-----------------오늘의 자동매매 종료 {now}------------------")
         kakao_module.send_msg_to_me(f"-----------------\n오늘의 자동매매 종료\n{now}\n------------------")
-
         break
 
