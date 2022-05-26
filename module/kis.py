@@ -99,56 +99,80 @@ class KIS:
                     'User-Agent': self._cfg['my_agent']
                 }
         print(self._cfg)
-        print("##############################################")
         self.auth()
-    # 계좌 잔고를 DataFrame 으로 반환
-    # Input: None (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
-    # Output: DataFrame (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
-    def get_acct_balance(self, rtCashFlag=False):
-        url = '/uapi/domestic-stock/v1/trading/inquire-balance'
-        tr_id = "TTTC8434R"
+        
+    # 계좌 잔고 액수 반환
+    def get_acct_remains(self):
+        url = '/uapi/overseas-stock/v1/trading/inquire-present-balance'
+        tr_id = "CTRP6504R"
 
         params = {
             'CANO': self.getTREnv().my_acct, 
             'ACNT_PRDT_CD': '01', 
-            'AFHR_FLPR_YN': 'N', 
-            'FNCG_AMT_AUTO_RDPT_YN': 'N', 
-            'FUND_STTL_ICLD_YN': 'N', 
-            'INQR_DVSN': '01', 
-            'OFL_YN': 'N', 
-            'PRCS_DVSN': '01', 
-            'UNPR_DVSN': '01', 
-            'CTX_AREA_FK100': '', 
-            'CTX_AREA_NK100': ''
+            'WCRC_FRCR_DVSN_CD': '02', 
+            'NATN_CD': '840', 
+            'TR_MKET_CD': '00', 
+            'INQR_DVSN_CD': '00'
+            }
+
+        t1 = self._url_fetch(url, tr_id, params)
+        try:
+            output2 = t1.getBody().output2[0]
+            print(t1.getBody().rt_cd)
+            print(output2)
+            if t1.getBody().rt_cd == '0':  #body 의 rt_cd 가 0 인 경우만 성공
+                return output2['frcr_drwg_psbl_amt_1']
+            else:
+                t1.printError()
+                return pd.DataFrame()
+        except:
+            print("ERROR IN REQUEST")  
+        
+
+    # 계좌 잔고를 DataFrame 으로 반환
+    # Input: None (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
+    # Output: DataFrame (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
+    def get_acct_balance(self, rtCashFlag=False):
+        url = '/uapi/overseas-stock/v1/trading/inquire-balance'
+        tr_id = "JTTT3012R"
+
+        params = {
+            'CANO': self.getTREnv().my_acct, 
+            'ACNT_PRDT_CD': '01', 
+            'OVRS_EXCG_CD': 'NASD', 
+            'TR_CRCY_CD': 'USD', 
+            'CTX_AREA_FK200': '', 
+            'CTX_AREA_NK200': ''
             }
 
         t1 = self._url_fetch(url, tr_id, params)
         if rtCashFlag and t1.isOK():
             r2 = t1.getBody().output2
-            return int(r2[0]['dnca_tot_amt'])
+            return t1.getBody().msg1
         try:
             output1 = t1.getBody().output1
             if t1.isOK() and output1:  #body 의 rt_cd 가 0 인 경우만 성공
                 tdf = pd.DataFrame(output1)
                 tdf.set_index('pdno', inplace=True)  
-                cf1 = ['prdt_name','hldg_qty', 'ord_psbl_qty', 'pchs_avg_pric', 'evlu_pfls_rt', 'prpr', 'bfdy_cprs_icdc', 'fltt_rt']
-                cf2 = ['종목명', '보유수량', '매도가능수량', '매입단가', '수익율', '현재가' ,'전일대비', '등락']
+                cf1 = ['ovrs_item_name','ovrs_cblc_qty', 'ord_psbl_qty', 'pchs_avg_pric', 'evlu_pfls_rt', 'now_pric2']
+                cf2 = ['종목명', '보유수량', '매도가능수량', '매입단가', '수익율', '현재가']
                 tdf = tdf[cf1]
                 tdf[cf1[1:]] = tdf[cf1[1:]].apply(pd.to_numeric)
                 ren_dict = dict(zip(cf1, cf2))
                 return tdf.rename(columns=ren_dict)
+                
+            else:
+                t1.printError()
+                return pd.DataFrame()
         except:
             print("ERROR IN REQUEST")  
-        else:
-            t1.printError()
-            return pd.DataFrame()
      
     # 종목별 현재가를 dict 로 반환
     # Input: 종목코드
     # Output: 현재가 Info dictionary. 반환된 dict 가 len(dict) < 1 경우는 에러로 보면 됨
 
     def get_current_price(self, stock_no):
-        url = "/uapi/domestic-stock/v1/quotations/inquire-price"
+        url = "/uapi/overseas-stock/v1/quotations/inquire-price"
         tr_id = "FHKST01010100"
 
         params = {
@@ -168,24 +192,26 @@ class KIS:
     # Input: 종목코드, 주문수량, 주문가격, Buy Flag(If True, it's Buy order), order_type="00"(지정가)
     # Output: HTTP Response
 
-    def do_order(self, stock_code, order_qty, order_price, prd_code="01", buy_flag=True, order_type="00"):
+    def do_order(self, excg_code ,stock_code, order_qty, order_price, prd_code="01", buy_flag=True, order_type="00"):
 
-        url = "/uapi/domestic-stock/v1/trading/order-cash"
-
+        url = "/uapi/overseas-stock/v1/trading/order"
+        type = ""
         if buy_flag:
-            tr_id = "TTTC0802U"  #buy
+            tr_id = "JTTT1002U"  #buy
         else:
-            tr_id = "TTTC0801U"  #sell
+            tr_id = "JTTT1006U"  #sell
+            type= "00"
 
         params = {
             'CANO': self.getTREnv().my_acct, 
             'ACNT_PRDT_CD': prd_code, 
+            'OVRS_EXCG_CD': excg_code,
             'PDNO': stock_code, 
             'ORD_DVSN': order_type, 
             'ORD_QTY': str(order_qty), 
             'ORD_UNPR': str(order_price), 
             'CTAC_TLNO': '', 
-            'SLL_TYPE': '01', 
+            'SLL_TYPE': type, 
             'ALGO_NO': ''
             }
         
@@ -271,6 +297,7 @@ class KIS:
         params = {
             "CANO": self.getTREnv().my_acct,
             "ACNT_PRDT_CD": prd_code,
+            "OVRS_EXCG_CD": "NASD",
             "PDNO": stock_code,
             "ORD_UNPR": str(qry_price),
             "ORD_DVSN": "02", 
