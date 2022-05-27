@@ -157,7 +157,7 @@ class KIS:
                 df = pd.DataFrame(output1)
                 using_column = ['ovrs_pdno', 'ovrs_item_name', 'frcr_evlu_pfls_amt', 'evlu_pfls_rt', 'ovrs_cblc_qty']
                 df = df[using_column]
-                df = df.rename(columns={'ovrs_pdno':'코드', 'ovrs_item_name':'종목명', 'frcr_evlu_pfls_amt':'실현손익', 'evlu_pfls_rt':'수익율', 'ovrs_cblc_qty':'수량'})
+                df = df.rename(columns={'ovrs_pdno':'코드', 'ovrs_item_name':'종목명', 'frcr_evlu_pfls_amt':'실현손익', 'evlu_pfls_rt':'수익률', 'ovrs_cblc_qty':'수량'})
                 return df                
             else:
                 t1.printError()
@@ -207,24 +207,26 @@ class KIS:
             'CANO': self.getTREnv().my_acct, 
             'ACNT_PRDT_CD': prd_code, 
             'OVRS_EXCG_CD': excg_code,
+            'OVRS_ORD_UNPR':str(order_price),
             'PDNO': stock_code, 
             'ORD_DVSN': order_type, 
             'ORD_QTY': str(order_qty), 
-            'ORD_UNPR': str(order_price), 
             'CTAC_TLNO': '', 
+            'ORD_SVR_DVSN_CD': '0',
             'SLL_TYPE': type, 
-            'ALGO_NO': ''
             }
         
         t1 = self._url_fetch(url, tr_id, params, postFlag=True, hashFlag=True)
-        
-        if t1.isOK():
-            kakao.send_msg_to_me(f"-----------------\n한국투자 매매 접수완료\n------------------\n {msg_type}: {name}\n")
-            return t1
-        else:
-            t1.printError()
-            kakao.send_msg_to_me(f"-----------------\n한국투자 매매 접수실패\n------------------\n {msg_type}: {name}\n")
-            return None
+        try:
+            if t1.isOK():
+                kakao.send_msg_to_me(f"-----------------\n한국투자 접수완료\n------------------\n {msg_type}: {name}\n")
+                
+            else:
+                kakao.send_msg_to_me(f"-----------------\n한국투자 접수실패\n------------------\n {msg_type}: {name}\n")
+                
+        except:
+            kakao.send_msg_to_me(f"-----------------\n한국투자 접수실패\n------------------\n {msg_type}: {name}\n")
+            
 
     # 사자 주문. 내부적으로는 do_order 를 호출한다.
     # Input: 종목코드, 주문수량, 주문가격
@@ -232,7 +234,7 @@ class KIS:
 
     def do_sell(self, excg_code ,stock_code, order_qty, order_price, kakao, name, prd_code="01", order_type="00"):
         t1 = self.do_order(excg_code, stock_code, order_qty, order_price, kakao,name, prd_code, buy_flag=False, order_type=order_type)
-        return t1.isOK()
+        
 
     # 팔자 주문. 내부적으로는 do_order 를 호출한다.
     # Input: 종목코드, 주문수량, 주문가격
@@ -240,7 +242,7 @@ class KIS:
 
     def do_buy(self, excg_code , stock_code, order_qty, order_price, kakao,name, prd_code="01", order_type="00"):
         t1 = self.do_order(excg_code, stock_code, order_qty, order_price, kakao,name, prd_code, buy_flag=True, order_type=order_type)
-        return t1.isOK()
+        
 
 
 
@@ -364,8 +366,6 @@ class KIS:
         cfg['my_token'] = token_key
         cfg['my_url'] = self._cfg[svr] 
         
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print(cfg['my_acct'])
         self._setTRENV(cfg)
 
     def _getResultObject(self, json_data):
@@ -424,8 +424,8 @@ class KIS:
     def set_order_hash_key(self, h, p):
     
         url = f"{self.getTREnv().my_url}/uapi/hashkey"
-    
-        res = requests.post(self, url, data=json.dumps(p), headers=h)
+        print(json.dumps(p))
+        res = requests.post(url, data=json.dumps(p), headers=h)
         rescode = res.status_code
         if rescode == 200:
             h['hashkey'] = self._getResultObject(res.json()).HASH
