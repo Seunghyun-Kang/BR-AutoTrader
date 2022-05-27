@@ -448,11 +448,20 @@ class AutoTradeModuleKIS:
 
     def start_task(self):
         for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
-            self.kis.do_sell(code, num, price, self.kakao, name,prd_code="01", order_type="31")
-
+            if self.ticker[code] == 'NASDAQ':
+                self.kis.do_sell('NASD', code, num, price, self.kakao, name,prd_code="01", order_type="31")
+            elif self.ticker[code] == 'NYSE':
+                self.kis.do_sell('NYSE', code, num, price, self.kakao, name,prd_code="01", order_type="31")
+            elif self.ticker[code] == 'AMEX':
+                self.kis.do_sell('AMEX', code, num, price, self.kakao, name,prd_code="01", order_type="31")
         for i, (code, name, price, num) in enumerate(self.buyList):
-            self.kis.do_sell(code, num, price, self.kakao,name, prd_code="01", order_type="32")
-
+            if self.ticker[code] == 'NASDAQ':
+                self.kis.do_sell('NASD',code, num, price, self.kakao,name, prd_code="01", order_type="32")
+            elif self.ticker[code] == 'NYSE':
+                self.kis.do_sell('NYSE', code, num, price, self.kakao,name, prd_code="01", order_type="32")
+            elif self.ticker[code] == 'AMEX':
+                self.kis.do_sell('AMEX', code, num, price, self.kakao,name, prd_code="01", order_type="32")
+                
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 
 kakao_module = kakao.Kakao()

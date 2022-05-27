@@ -230,16 +230,16 @@ class KIS:
     # Input: 종목코드, 주문수량, 주문가격
     # Output: True, False
 
-    def do_sell(self,stock_code, order_qty, order_price, kakao, name, prd_code="01", order_type="00"):
-        t1 = self.do_order(stock_code, order_qty, order_price, kakao,name, buy_flag=False, order_type=order_type)
+    def do_sell(self, excg_code ,stock_code, order_qty, order_price, kakao, name, prd_code="01", order_type="00"):
+        t1 = self.do_order(excg_code, stock_code, order_qty, order_price, kakao,name, prd_code, buy_flag=False, order_type=order_type)
         return t1.isOK()
 
     # 팔자 주문. 내부적으로는 do_order 를 호출한다.
     # Input: 종목코드, 주문수량, 주문가격
     # Output: True, False
 
-    def do_buy(self, stock_code, order_qty, order_price, kakao,name, prd_code="01", order_type="00"):
-        t1 = self.do_order(stock_code, order_qty, order_price, kakao,name, buy_flag=True, order_type=order_type)
+    def do_buy(self, excg_code , stock_code, order_qty, order_price, kakao,name, prd_code="01", order_type="00"):
+        t1 = self.do_order(excg_code, stock_code, order_qty, order_price, kakao,name, prd_code, buy_flag=True, order_type=order_type)
         return t1.isOK()
 
 
