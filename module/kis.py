@@ -153,11 +153,12 @@ class KIS:
             return t1.getBody().msg1
         try:
             output1 = t1.getBody().output1
-            if t1.isOK() and output1:  #body 의 rt_cd 가 0 인 경우만 성공
+            output2 = t1.getBody().output2
+            if t1.isOK() and output1 and output2:  #body 의 rt_cd 가 0 인 경우만 성공
                 df = pd.DataFrame(output1)
-                using_column = ['ovrs_pdno', 'ovrs_item_name', 'frcr_evlu_pfls_amt', 'evlu_pfls_rt', 'ovrs_cblc_qty']
+                using_column = ['ovrs_pdno', 'ovrs_item_name', 'frcr_evlu_pfls_amt', 'evlu_pfls_rt', 'ovrs_cblc_qty','now_pric2','ord_psbl_qty']
                 df = df[using_column]
-                df = df.rename(columns={'ovrs_pdno':'코드', 'ovrs_item_name':'종목명', 'frcr_evlu_pfls_amt':'실현손익', 'evlu_pfls_rt':'수익률', 'ovrs_cblc_qty':'수량'})
+                df = df.rename(columns={'ovrs_pdno':'코드', 'ovrs_item_name':'종목명', 'frcr_evlu_pfls_amt':'실현손익', 'evlu_pfls_rt':'수익률', 'ovrs_cblc_qty':'수량','now_pric2':'가격','ord_psbl_qty':'매도가능수량'})
                 return df                
             else:
                 t1.printError()
