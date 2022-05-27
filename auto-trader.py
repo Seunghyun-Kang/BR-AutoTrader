@@ -339,9 +339,16 @@ class AutoTradeModuleCREON:
 class AutoTradeModuleKIS:
     def __init__(self, file):
         self.kis = kis.KIS()
-        self.remains = self.kis.get_acct_remains()
+
+        self.deposit = self.kis.get_acct_remains()
+        self.remains = self.deposit.사용가능.values[0]
+        self.total_money = self.deposit.외화잔고.values[0]
+        self.using_money = self.deposit.매수증거금.values[0]
+
+        self.allStockHolding = self.kis.get_acct_balance()
+
         self.kakao = kakao.Kakao()
-        self.PRICE_PER_ORDER = 100
+        self.PRICE_PER_ORDER = self.total_money / 490
 
         if datetime.utcnow().weekday() == 0:
             self.signal_day = (datetime.utcnow() - timedelta(3)).strftime("%Y-%m-%d")
@@ -364,68 +371,87 @@ class AutoTradeModuleKIS:
             sql = f"select code, type, close, date from signal_bollinger_reverse_usa where date >= '{self.signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
-
-    def check_signals(self):
         
+        self.company = {}
+        self.ticker = {}
+        with self.conn.cursor() as curs :
+            sql = f"select code, company from company_info_usa"
+            curs.execute(sql) 
+            companyPD = pd.DataFrame(curs.fetchall())
+            
+            for pos in range(len(companyPD)):
+                code = companyPD.values[pos][0]
+                company = companyPD.values[pos][1]
+                ticker = companyPD.values[pos][2]
+                self.company[code] = company
+                self.company[code] = ticker
+        
+        self.sellList = []
+        self.buyList = []
+    def check_signals(self):
+        remain_deposit = self.remains
         needMoney = 0
-        sellList = []
-        buyList = []
+
         for pos in range(len(self.signals)):
             code = self.signals.values[pos][0]
             signal_type = self.signals.values[pos][1]
-            signal_price = int(self.signals.values[pos][2])
+            signal_price = round(float(self.signals.values[pos][2]), 2)
             num = 0
             
             if signal_type == 'buy':
-                if signal_price > self.PRICE_PER_ORDER:
+                if signal_price > self.PRICE_PER_ORDER and signal_price <= self.PRICE_PER_ORDER * 10:
                     num = 1
+                elif signal_price > self.PRICE_PER_ORDER and signal_price > self.PRICE_PER_ORDER * 10:
+                    self.f.write(f"-----------------\n한국투자 해당 종목 기준가격 10배 이상, 매수 무시\n------------------")
+                    self.kakao.send_msg_to_me(f"-----------------\n한국투자 해당 종목 기준가격 10배 이상, 매수 무시\n------------------")
+                    continue
                 else:
                     num = int(self.PRICE_PER_ORDER/signal_price)
                 
-                if signal_price * num > self.remains:
+                if signal_price * num > remain_deposit:
                     print("No money in account")
                     self.f.write("No money in account\n")
                     
                     needMoney = needMoney + (signal_price * num)
                     self.kakao.send_msg_to_me(f"-----------------\n한국투자 계좌 잔액 부족\n{needMoney}\n------------------")
-                buyList.append((code, signal_price))
-                #remain_deposit = remain_deposit - signal_price * num
+                self.buyList.append((code, self.company[code] ,signal_price, num))
+                remain_deposit = remain_deposit - signal_price * num
             else:
-                print("매도 미주")
-                sellList.append(code)
+                for idx in range(len(self.allStockHolding)):
+                    holding_code = self.allStockHolding.코드.values[idx]
+                    name = self.allStockHolding.종목명.values[idx]
+
+                    if code == holding_code:
+                        num = self.allStockHolding.수량.values[idx]
+                        profit = self.allStockHolding.실현손익.values[idx]
+                        profit_rate = self.allStockHolding.수익률.values[idx]
+                        self.sellList.append((code, name , signal_price, profit, profit_rate, num))
+                        print(f"*****************한국투자 매도 예정 {name}, {profit} 이익***********************\n")
+                        self.f.write(f"*****************한국투자 매도 예정 {name}, {profit} 이익***********************\n")
+        
         
         # buy_text = ""
-        for i, (code, price) in enumerate(buyList):
+        for i, (code, name, price, num) in enumerate(self.buyList):
             # buy_text = buy_text + f"{i+1}. 매수: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매수 예정\n------------------\n{i+1}. 매수: {code} - {format(price, ',')}달러\n")
+                self.kakao.send_msg_to_me(f"-----------------\n한국투자 오늘의 매수 예정\n------------------\n{i+1}. 매수: {name} - {format(price, ',')}달러\n")
             else:
-                self.kakao.send_msg_to_me(f"{i+1}. 매수: {code} - {format(price, ',')}달러 - {math.trunc(self.PRICE_PER_ORDER/price)}개\n")
+                self.kakao.send_msg_to_me(f"{i+1}. 매수: {name} - {format(price, ',')}달러 - {num}개\n")
         # buy_text = buy_text + "\n\n"
-        for i, (code) in enumerate(sellList):
+        for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
             # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n오늘의 매도 예정\n------------------\n{i+1}. 매도: {code}\n")
+                self.kakao.send_msg_to_me(f"-----------------\n한국투자 오늘의 매도 예정\n------------------\n{i+1}. 매도: {name}, {profit} 이익\n")
             else:
-                self.kakao.send_msg_to_me(f"{i+1}. 매도: {code}\n")
+                self.kakao.send_msg_to_me(f"{i+1}. 매도: {name}, {profit} 이익\n")
 
 
     def start_task(self):
-        for pos in range(len(self.signals)):
-            code = self.signals.values[pos][0]
-            signal_type = self.signals.values[pos][1]
-            signal_price = int(self.signals.values[pos][2])
-            num = 0
-            
-            if signal_type == 'buy':
-                if signal_price > self.PRICE_PER_ORDER:
-                    num = 1
-                else:
-                    num = int(self.PRICE_PER_ORDER/signal_price)
+        for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
+            self.kis.do_sell(code, num, price, self.kakao, name,prd_code="01", order_type="31")
 
-                self.kis.do_buy(code, num, signal_price, prd_code="01", order_type="00")
-            else :
-                self.kis.do_sell(code, num, signal_price, prd_code="01", order_type="00")
+        for i, (code, name, price, num) in enumerate(self.buyList):
+            self.kis.do_sell(code, num, price, self.kakao,name, prd_code="01", order_type="32")
 
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 
@@ -486,7 +512,7 @@ while True:
         kakao_module.send_msg_to_me(f"-----------------\n오늘의 자동매매 종료\n{now}\n------------------")
         break
     
-    if _time.hour == 23 and _time.minute == 0 and NASDAQ_Done == False:
+    if _time.hour == 23 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 미주 자동매매 시작 {_time}------------------")
         f.write(f"-----------------오늘의 미주 자동매매 시작 {_time}------------------")
