@@ -14,6 +14,7 @@ from datetime import timedelta, datetime
 from pywinauto import application
 import configparser as parser
 from pytimekr import pytimekr
+import holidays
 
 class AutoTradeModuleCREON:
     def __init__(self, file):
@@ -442,9 +443,9 @@ class AutoTradeModuleKIS:
         for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
             # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"-----------------\n한국투자 오늘의 매도 예정\n------------------\n{i+1}. 매도: {name}, {profit} 이익\n")
+                self.kakao.send_msg_to_me(f"-----------------\n한국투자 오늘의 매도 예정\n------------------\n{i+1}. 매도: {name}, {profit} 달러 이익\n")
             else:
-                self.kakao.send_msg_to_me(f"{i+1}. 매도: {name}, {profit} 이익\n")
+                self.kakao.send_msg_to_me(f"{i+1}. 매도: {name}, {profit} 달러 이익\n")
 
 
     def start_task(self):
@@ -462,6 +463,35 @@ class AutoTradeModuleKIS:
                 self.kis.do_buy('NYSE', code, num, price, self.kakao,name, prd_code="01", order_type="32")
             elif self.ticker[code] == 'AMEX':
                 self.kis.do_buy('AMEX', code, num, price, self.kakao,name, prd_code="01", order_type="32")
+    
+    def trade(self, type):
+        self.allStockHolding = self.kis.get_acct_balance()
+        profit_flag = 0.0
+
+        if type == 'normal': 
+            profit_flag = 20.0
+        elif type == 'last':
+            profit_flag = 5.0
+
+        for idx in range(len(self.allStockHolding)):
+            holding_code = self.allStockHolding.코드.values[idx]
+            name = self.allStockHolding.종목명.values[idx]
+
+            num = self.allStockHolding.수량.values[idx]
+            profit = float(self.allStockHolding.실현손익.values[idx])
+            profit_rate = float(self.allStockHolding.수익률.values[idx])
+            price = round(float(self.allStockHolding.가격.values[idx]) * 0.98, 2)
+            possible_sell = float(self.allStockHolding.매도가능수량.values[idx])
+            
+            if profit_rate >= profit_flag and possible_sell > 0:
+                print(f"*****************한국투자 매도 예정 {name}, {profit} 이익***********************\n")
+                self.f.write(f"*****************한국투자 매도 예정 {name}, {profit} 이익***********************\n")
+                if self.ticker[holding_code] == 'NASDAQ':
+                    self.kis.do_sell('NASD', holding_code, num, price, self.kakao, name,prd_code="01", order_type="00")
+                elif self.ticker[holding_code] == 'NYSE':
+                    self.kis.do_sell('NYSE', holding_code, num, price, self.kakao, name,prd_code="01", order_type="00")
+                elif self.ticker[holding_code] == 'AMEX':
+                    self.kis.do_sell('AMEX', holding_code, num, price, self.kakao, name,prd_code="01", order_type="00")
 
 now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 
@@ -472,42 +502,54 @@ f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
 
 work = AutoTradeModuleCREON(f)
 work_nasdaq = AutoTradeModuleKIS(f)
+
 KRX_Done = False
 NASDAQ_Done = False
+KRX_Break = False
+NASDAQ_Break = False
 
 kr_holidays = pytimekr.holidays(year=datetime.now().year)
 red_days_chuseok = pytimekr.red_days(pytimekr.chuseok(year=datetime.now().year))
 red_days_lunar_newyear = pytimekr.red_days(pytimekr.lunar_newyear(year=datetime.now().year))
+
+_weekday = datetime.today().weekday()
+_time = datetime.now()
 
 for red_days in red_days_chuseok:
     kr_holidays.append(red_days)
 for red_days in red_days_lunar_newyear:
     kr_holidays.append(red_days)
 
-_weekday = datetime.today().weekday()
-_time = datetime.now()
+for us_day in holidays.UnitedStates(years=_time.year).items():
+    if us_day == datetime.today().strftime("%Y-%m-%d"):
+        print(f"-----------------오늘은 미국 노는날 {_time}------------------")
+        f.write(f"-----------------오늘은 미국 노는날 {_time}------------------")
+        kakao_module.send_msg_to_me(f"-----------------오늘은 미국 노는날 {_time}------------------")
+        NASDAQ_Break = True
 
 while True:
     _time = datetime.now()
+
     if _time.hour == 8 and _time.minute == 0 and _time.second == 0:
-        do_task = True
         for red_day in kr_holidays:
             if _time.month == red_day.month and _time.day == red_day.day:
                 print(f"-----------------오늘은 한국 노는날 {_time}------------------")
                 f.write(f"-----------------오늘은 한국 노는날 {_time}------------------")
                 kakao_module.send_msg_to_me(f"-----------------오늘은 한국 노는날 {_time}------------------")
-                do_task = False
+                KRX_Break = True
 
         if _weekday == 5 or _weekday == 6:
-            print(f"-----------------오늘은 한국 노는날 {_time}------------------")
-            f.write(f"-----------------오늘은 한국 노는날 {_time}------------------")
-            kakao_module.send_msg_to_me(f"-----------------오늘은 한국 노는날 {_time}------------------")
-            do_task = False
-        if do_task == True:
+            print(f"-----------------오늘은 노는날 {_time}------------------")
+            f.write(f"-----------------오늘은 노는날 {_time}------------------")
+            kakao_module.send_msg_to_me(f"-----------------오늘은 노는날 {_time}------------------")
+            KRX_Break = True
+            NASDAQ_Break == True 
+
+        if KRX_Break == False:
             work.checkTodayOrder()
             work.checkDeposit()
     
-    if _time.hour == 9 and KRX_Done == False:
+    if _time.hour == 9 and KRX_Done == False and KRX_Break == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 한국 자동매매 시작 {_time}------------------")
         f.write(f"-----------------오늘의 한국 자동매매 시작 {_time}------------------")
@@ -516,21 +558,37 @@ while True:
         work.start_task()
         KRX_Done = True
 
-    if _time.hour == 15 and _time.minute > 30:
+    if _time.hour == 15 and _time.minute > 30 and KRX_Break == False:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"-----------------오늘의 한국 자동매매 종료 {now}------------------")
         f.write(f"-----------------오늘의 한국 자동매매 종료 {now}------------------")
         kakao_module.send_msg_to_me(f"-----------------\n오늘의 한국 자동매매 종료\n{now}\n------------------")
         KRX_Done = False 
 
-    if _time.hour == 23 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False:
+    if _time.hour == 23 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
         work_nasdaq.check_signals()
     
-    if _time.hour == 23 and _time.minute == 30 and NASDAQ_Done == False:
-        print(f"-----------------오늘의 미국 자동매매 시작 {_time}------------------")
-        f.write(f"-----------------오늘의 미국 자동매매 시작 {_time}------------------")
-        kakao_module.send_msg_to_me(f"-----------------\n오늘의 미국 자동매매 시작\n{_time}\n------------------")
-        work_nasdaq.start_task()
+    if ((_time.hour == 23 and _time.minute >= 30) or (_time.hour >= 0 and _time.hour < 6)) and NASDAQ_Done == False and NASDAQ_Break == False:
         NASDAQ_Done = True
+
+    if _time.hour == 23 and _time.minute == 29 and NASDAQ_Done == False and NASDAQ_Break == False:
+        print(f"-----------------오늘의 미국 자동매매 시작 1 분전{_time}------------------")
+        f.write(f"-----------------오늘의 미국 자동매매 시작 1 분전{_time}------------------")
+        kakao_module.send_msg_to_me(f"-----------------\n오늘의 미국 자동매매 1 분전\n{_time}\n------------------")
+        work_nasdaq.start_task()
+
+    if NASDAQ_Done == True and  _time.second == 0 and NASDAQ_Break == False:
+        print(f"-----------------미국 자동매매 가격 점검 {_time}------------------")
+        work_nasdaq.trade('normal')
+
+    if NASDAQ_Done == True and _time.hour == 5 and _time.second == 30 and NASDAQ_Break == False:
+        print(f"-----------------미국 자동매매 최종 가격 점검 {_time}------------------")
+        work_nasdaq.trade('last')
+
+    if _time.hour == 6 and _time.minute == 0 and NASDAQ_Done == True and NASDAQ_Break == False:
+        print(f"-----------------오늘의 미국 자동매매 종료 {_time}------------------")
+        f.write(f"-----------------오늘의 미국 자동매매 종료 {_time}------------------")
+        kakao_module.send_msg_to_me(f"-----------------\n오늘의 미국 자동매매 종료\n{_time}\n------------------")
+        NASDAQ_Done = False
 
 print(f"-----------------프로그램 정상 종료 {now}------------------")
