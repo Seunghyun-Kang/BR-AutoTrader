@@ -118,12 +118,18 @@ class KIS:
         t1 = self._url_fetch(url, tr_id, params)
         try:
             output2 = t1.getBody().output2
+            output1 = t1.getBody().output1
             if t1.getBody().rt_cd == '0':  #body 의 rt_cd 가 0 인 경우만 성공
+                df1 = pd.DataFrame(output1)
+                using_column = ['frcr_evlu_amt2', 'frcr_pchs_amt', 'evlu_pfls_amt2']
+                df1 = df1[using_column]
+                df1 = df1.rename(columns={'frcr_evlu_amt2':'평가금액', 'frcr_pchs_amt':'매입금액', 'evlu_pfls_amt2':'평가손익'})
+
                 df = pd.DataFrame(output2)
                 using_column = ['frcr_dncl_amt_2', 'frcr_drwg_psbl_amt_1', 'frcr_buy_mgn_amt']
                 df = df[using_column]
                 df = df.rename(columns={'frcr_dncl_amt_2':'외화잔고', 'frcr_drwg_psbl_amt_1':'사용가능', 'frcr_buy_mgn_amt':'매수증거금'})
-                return df
+                return df1, df
             else:
                 t1.printError()
                 return pd.DataFrame()
@@ -220,13 +226,13 @@ class KIS:
         t1 = self._url_fetch(url, tr_id, params, postFlag=True, hashFlag=True)
         try:
             if t1.isOK():
-                kakao.send_msg_to_me(f"-----------------\n한국투자 접수완료\n------------------\n {msg_type}: {name}\n")
+                kakao.send_msg_to_me(f"-----------------\n한국투자 미국 주식 접수완료\n------------------\n {msg_type}: {name}\n")
                 
             else:
-                kakao.send_msg_to_me(f"-----------------\n한국투자 접수실패\n------------------\n {msg_type}: {name}\n")
+                kakao.send_msg_to_me(f"-----------------\n한국투자 미국 주식 접수실패\n------------------\n {msg_type}: {name}\n")
                 
         except:
-            kakao.send_msg_to_me(f"-----------------\n한국투자 접수실패\n------------------\n {msg_type}: {name}\n")
+            kakao.send_msg_to_me(f"-----------------\n한국투자 미국 주식 접수실패\n------------------\n {msg_type}: {name}\n")
             
 
     # 사자 주문. 내부적으로는 do_order 를 호출한다.
