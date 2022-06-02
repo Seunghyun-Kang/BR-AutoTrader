@@ -361,6 +361,16 @@ class AutoTradeModuleKIS:
         database = properties['DB_INFO_NASDAQ']['database']
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
         
+        self.company = {}
+        self.ticker = {}
+        
+        self.allStockHolding = pd.DataFrame()
+        self.sellList = []
+        self.buyList = []
+        self.company = []
+        self.ticker = []
+
+    def reinit(self):
         with self.conn.cursor() as curs :
             sql = f"select code, type, close, date from signal_bollinger_reverse_usa where date >= '{self.signal_day}' and valid = 'valid'"
             curs.execute(sql) 
@@ -377,21 +387,27 @@ class AutoTradeModuleKIS:
                 code = companyPD.values[pos][0]
                 self.company[code] = companyPD.values[pos][1]
                 self.ticker[code] = companyPD.values[pos][2]
-        
-        self.sellList = []
-        self.buyList = []
-
+ 
     def check_deposit(self):
-        self.deposit = self.kis.get_acct_remains()
-        self.remains = float(self.deposit.사용가능.values[0])
-        self.total_money = float(self.deposit.외화잔고.values[0])
-        self.using_money = float(self.deposit.매수증거금.values[0])
-        self.PRICE_PER_ORDER = float(self.total_money) / 100  #4.5만원
-
+        remainStock, accountMoney = self.kis.get_acct_remains()
         self.allStockHolding = self.kis.get_acct_balance()
-        self.kakao.send_msg_to_me(f"--\n오늘의 한국 투자 종목 당 가격 {self.PRICE_PER_ORDER} 달러\n--")
+        price_now = 0.0
+        price_last = 0.0
+        profit = 0.0
 
+        for pos in range(len(remainStock)):
+            price_now = price_now + float(remainStock.평가금액.values[pos])
+            price_last = price_last + float(remainStock.매입금액.values[pos])
+            profit  = profit + float(remainStock.평가손익.values[pos])
+    
+        self.remains = float(accountMoney.사용가능.values[0])
+        self.total_money = self.remains + price_now
+        # self.total_money = float(self.deposit.외화잔고.values[0])
+        # self.using_money = float(self.deposit.매수증거금.values[0])
         
+        self.PRICE_PER_ORDER = float(self.total_money) / 50 
+        self.kakao.send_msg_to_me(f"--미국주식 원금 3946.53 달러--\n--현재까지 미국주식 자산 {self.total_money} 달러--\n--현재까지 미국주식 수익률 {profit} 달러--\n--오늘의 미국주식 종목 당 가격 {self.PRICE_PER_ORDER} 달러--\n")
+                
     def check_signals(self):
         remain_deposit = self.remains
         needMoney = 0
@@ -406,8 +422,8 @@ class AutoTradeModuleKIS:
                 if signal_price > self.PRICE_PER_ORDER and signal_price <= self.PRICE_PER_ORDER * 10:
                     num = 1
                 elif signal_price > self.PRICE_PER_ORDER and signal_price > self.PRICE_PER_ORDER * 10:
-                    self.f.write(f"--\n한국투자 해당 종목 기준가격 10배 이상, 매수 무시\n--")
-                    self.kakao.send_msg_to_me(f"--\n한국투자 해당 종목 기준가격 10배 이상, 매수 무시\n--")
+                    self.f.write(f"--\미국주식 해당 종목 기준가격 10배 이상, 매수 무시\n--")
+                    self.kakao.send_msg_to_me(f"--\미국주식 해당 종목 기준가격 10배 이상, 매수 무시\n--")
                     continue
                 else:
                     num = int(self.PRICE_PER_ORDER/signal_price)
@@ -417,7 +433,7 @@ class AutoTradeModuleKIS:
                     self.f.write("No money in account\n")
                     
                     needMoney = needMoney + (signal_price * num)
-                    self.kakao.send_msg_to_me(f"--\n한국투자 계좌 잔액 부족\n{needMoney}\n--")
+                    self.kakao.send_msg_to_me(f"--\미국주식 계좌 잔액 부족\n{needMoney}\n--")
                 self.buyList.append((code, self.company[code] ,signal_price, num))
                 remain_deposit = remain_deposit - signal_price * num
             else:
@@ -430,27 +446,30 @@ class AutoTradeModuleKIS:
                         profit = self.allStockHolding.실현손익.values[idx]
                         profit_rate = self.allStockHolding.수익률.values[idx]
                         self.sellList.append((code, name , signal_price, profit, profit_rate, num))
-                        print(f"**한국투자 매도 예정 {name}, {profit} 이익**\n")
-                        self.f.write(f"**한국투자 매도 예정 {name}, {profit} 이익**\n")
+                        print(f"**미국주식 매도 예정 {name}, {profit} 이익**\n")
+                        self.f.write(f"**미국주식 매도 예정 {name}, {profit} 이익**\n")
         
         
         # buy_text = ""
         for i, (code, name, price, num) in enumerate(self.buyList):
             # buy_text = buy_text + f"{i+1}. 매수: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"--\n한국투자 오늘의 매수 예정\n--\n{i+1}. 매수: {name} - {format(price, ',')}달러\n")
+                self.kakao.send_msg_to_me(f"--\미국주식 오늘의 매수 예정\n--\n{i+1}. 매수: {name} - {format(price, ',')}달러\n")
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매수: {name} - {format(price, ',')}달러 - {num}개\n")
         # buy_text = buy_text + "\n\n"
         for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
             # buy_text = buy_text + f"{i+1}. 매도: {code} 종목, {price}원\n"
             if i == 0:
-                self.kakao.send_msg_to_me(f"--\n한국투자 오늘의 매도 예정\n--\n{i+1}. 매도: {name}, {profit} 달러 이익\n")
+                self.kakao.send_msg_to_me(f"--\미국주식 오늘의 매도 예정\n--\n{i+1}. 매도: {name}, {profit} 달러 이익\n")
             else:
                 self.kakao.send_msg_to_me(f"{i+1}. 매도: {name}, {profit} 달러 이익\n")
 
 
     def start_task(self):
+        self.kakao.send_msg_to_me(f"--미국주식 오늘의 매도 종목 수--\n{len(self.sellList)}\n")
+        self.kakao.send_msg_to_me(f"--미국주식 오늘의 매수 종목 수--\n{len(self.buyList)}\n")
+
         for i, (code, name, price, profit, profit_rate, num) in enumerate(self.sellList):
             if self.ticker[code] == 'NASDAQ':
                 self.kis.do_sell('NASD', code, num, '0', self.kakao, name,prd_code="01", order_type="31")
@@ -460,18 +479,18 @@ class AutoTradeModuleKIS:
                 self.kis.do_sell('AMEX', code, num, '0', self.kakao, name,prd_code="01", order_type="31")
         for i, (code, name, price, num) in enumerate(self.buyList):
             if self.ticker[code] == 'NASDAQ':
-                self.kis.do_buy('NASD',code, num, price, self.kakao,name, prd_code="01", order_type="32")
+                self.kis.do_buy('NASD',code, num, price, self.kakao,name, prd_code="01", order_type="34")
             elif self.ticker[code] == 'NYSE':
-                self.kis.do_buy('NYSE', code, num, price, self.kakao,name, prd_code="01", order_type="32")
+                self.kis.do_buy('NYSE', code, num, price, self.kakao,name, prd_code="01", order_type="34")
             elif self.ticker[code] == 'AMEX':
-                self.kis.do_buy('AMEX', code, num, price, self.kakao,name, prd_code="01", order_type="32")
+                self.kis.do_buy('AMEX', code, num, price, self.kakao,name, prd_code="01", order_type="34")
     
     def trade(self, type):
         self.allStockHolding = self.kis.get_acct_balance()
         profit_flag = 0.0
 
         if type == 'normal': 
-            profit_flag = 20.0
+            profit_flag = 30.0
         elif type == 'last':
             profit_flag = 5.0
 
@@ -486,8 +505,8 @@ class AutoTradeModuleKIS:
             possible_sell = float(self.allStockHolding.매도가능수량.values[idx])
             
             if profit_rate >= profit_flag and possible_sell > 0:
-                print(f"**한국투자 매도 예정 {name}, {profit} 이익**\n")
-                self.f.write(f"**한국투자 매도 예정 {name}, {profit} 이익**\n")
+                print(f"**미국주식 매도 예정 {name}, {profit} 이익**\n")
+                self.f.write(f"**미국주식 매도 예정 {name}, {profit} 이익**\n")
                 if self.ticker[holding_code] == 'NASDAQ':
                     self.kis.do_sell('NASD', holding_code, num, price, self.kakao, name,prd_code="01", order_type="00")
                 elif self.ticker[holding_code] == 'NYSE':
@@ -564,40 +583,39 @@ while True:
         work.start_task()
         KRX_Done = True
 
-    if _time.hour == 15 and _time.minute > 30 and KRX_Break == False:
+    if _time.hour == 15 and _time.minute > 30 and KRX_Break == False and KRX_Done == True:
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         print(f"--오늘의 한국 자동매매 종료 {now}--")
         f.write(f"--오늘의 한국 자동매매 종료 {now}--")
         kakao_module.send_msg_to_me(f"--\n오늘의 한국 자동매매 종료\n{now}\n--")
         KRX_Done = False 
 
-    if _time.hour == 23 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
+    if _time.hour == 21 and _time.minute == 30 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
+        print(f"--오늘의 미국 자동매매 시작 60분 전{_time}--")
+        f.write(f"--오늘의 미국 자동매매 시작 60분 전{_time}--")
+        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 60분 전\n{_time}\n--")
+        work_nasdaq.reinit()
+
+    if _time.hour == 22 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
         print(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
         f.write(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
         kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 30분 전\n{_time}\n--")
-        work_nasdaq.check_signals()
         work_nasdaq.check_deposit()
+        work_nasdaq.check_signals()
         work_nasdaq.start_task()
     
-    if ((_time.hour == 23 and _time.minute >= 30) or (_time.hour >= 0 and _time.hour < 6)) and NASDAQ_Done == False and NASDAQ_Break == False:
+    if ((_time.hour == 22 and _time.minute >= 30) or (_time.hour >= 0 and _time.hour < 5)) and NASDAQ_Done == False and NASDAQ_Break == False:
         NASDAQ_Done = True
-
-    # if _time.hour == 23 and _time.minute == 29 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
-    #     print(f"--오늘의 미국 자동매매 시작 1 분전{_time}--")
-    #     f.write(f"--오늘의 미국 자동매매 시작 1 분전{_time}--")
-    #     kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 1 분전\n{_time}\n--")
-    #     work_nasdaq.check_deposit()
-    #     work_nasdaq.start_task()
 
     if NASDAQ_Done == True and  _time.second == 0 and NASDAQ_Break == False:
         print(f"--미국 자동매매 가격 점검 {_time}--")
         work_nasdaq.trade('normal')
 
-    if NASDAQ_Done == True and _time.hour == 5 and _time.second == 30 and NASDAQ_Break == False:
+    if NASDAQ_Done == True and _time.hour == 4 and _time.second == 30 and NASDAQ_Break == False:
         print(f"--미국 자동매매 최종 가격 점검 {_time}--")
         work_nasdaq.trade('last')
 
-    if _time.hour == 6 and _time.minute == 0 and NASDAQ_Done == True and NASDAQ_Break == False:
+    if _time.hour == 5 and _time.minute == 0 and NASDAQ_Done == True and NASDAQ_Break == False:
         print(f"--오늘의 미국 자동매매 종료 {_time}--")
         f.write(f"--오늘의 미국 자동매매 종료 {_time}--")
         kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 종료\n{_time}\n--")
