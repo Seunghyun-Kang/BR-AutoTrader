@@ -145,7 +145,7 @@ class AutoTradeModuleCREON:
         for item in self.allStockHolding:
             self.accout_money = self.accout_money + item['평가금액']
 
-        self.PRICE_PER_ORDER = self.accout_money / 30  # -> 50 : 100만원
+        self.PRICE_PER_ORDER = self.accout_money / 20  # -> 50 : 100만원
         print("전체 계좌 잔고: ")
         print(self.accout_money)
         print("예수금 잔고: ")
@@ -367,8 +367,6 @@ class AutoTradeModuleKIS:
         self.allStockHolding = pd.DataFrame()
         self.sellList = []
         self.buyList = []
-        self.company = []
-        self.ticker = []
 
     def reinit(self):
         with self.conn.cursor() as curs :
@@ -394,19 +392,24 @@ class AutoTradeModuleKIS:
         price_now = 0.0
         price_last = 0.0
         profit = 0.0
-
+        index = 0
         for pos in range(len(remainStock)):
+            index = index + 1
             price_now = price_now + float(remainStock.평가금액.values[pos])
             price_last = price_last + float(remainStock.매입금액.values[pos])
             profit  = profit + float(remainStock.평가손익.values[pos])
     
+        print(f"현재가치: {price_now}, {index}개")
+        self.kakao.send_msg_to_me(f"현재가치: {price_now}, {index}개")
+        
+
         self.remains = float(accountMoney.사용가능.values[0])
         self.total_money = self.remains + price_now
         # self.total_money = float(self.deposit.외화잔고.values[0])
         # self.using_money = float(self.deposit.매수증거금.values[0])
         
-        self.PRICE_PER_ORDER = float(self.total_money) / 50 
-        self.kakao.send_msg_to_me(f"--미국주식 원금 3946.53 달러--\n--현재까지 미국주식 자산 {self.total_money} 달러--\n--현재까지 미국주식 수익률 {profit} 달러--\n--오늘의 미국주식 종목 당 가격 {self.PRICE_PER_ORDER} 달러--\n")
+        self.PRICE_PER_ORDER = float(self.total_money) / 30 
+        self.kakao.send_msg_to_me(f"--미국주식 원금 3946.53 달러--\n--현재까지 미국주식 자산 {self.total_money} 달러--\n--현재까지 미국주식 수익률 {profit}%--\n--오늘의 미국주식 종목 당 가격 {self.PRICE_PER_ORDER} 달러--\n")
                 
     def check_signals(self):
         remain_deposit = self.remains
@@ -528,6 +531,7 @@ NASDAQ_Done = False
 KRX_Break = False
 KRX_Check = False
 NASDAQ_Break = False
+NASDAQ_Ready = False
 
 kr_holidays = pytimekr.holidays(year=datetime.now().year)
 red_days_chuseok = pytimekr.red_days(pytimekr.chuseok(year=datetime.now().year))
@@ -588,21 +592,27 @@ while True:
         print(f"--오늘의 한국 자동매매 종료 {now}--")
         f.write(f"--오늘의 한국 자동매매 종료 {now}--")
         kakao_module.send_msg_to_me(f"--\n오늘의 한국 자동매매 종료\n{now}\n--")
+        del work
         KRX_Done = False 
 
-    if _time.hour == 21 and _time.minute == 30 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
-        print(f"--오늘의 미국 자동매매 시작 60분 전{_time}--")
-        f.write(f"--오늘의 미국 자동매매 시작 60분 전{_time}--")
-        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 60분 전\n{_time}\n--")
+    if _time.hour >= 18 and NASDAQ_Done == False and NASDAQ_Break == False and NASDAQ_Ready == False:
+        print(f"--오늘의 미국 자동매매 시작 준비 {_time}--")
+        f.write(f"--오늘의 미국 자동매매 시작 준비 {_time}--")
+        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 준비 \n{_time}\n--")
         work_nasdaq.reinit()
-
-    if _time.hour == 22 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
-        print(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
-        f.write(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
-        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 30분 전\n{_time}\n--")
+        NASDAQ_Ready = True
+        time.sleep(1)
         work_nasdaq.check_deposit()
         work_nasdaq.check_signals()
         work_nasdaq.start_task()
+
+    # if _time.hour == 22 and _time.minute == 0 and _time.second == 0 and NASDAQ_Done == False and NASDAQ_Break == False:
+    #     print(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
+    #     f.write(f"--오늘의 미국 자동매매 시작 30분 전{_time}--")
+    #     kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 30분 전\n{_time}\n--")
+    #     work_nasdaq.check_deposit()
+    #     work_nasdaq.check_signals()
+    #     work_nasdaq.start_task()
     
     if ((_time.hour == 22 and _time.minute >= 30) or (_time.hour >= 0 and _time.hour < 5)) and NASDAQ_Done == False and NASDAQ_Break == False:
         NASDAQ_Done = True
