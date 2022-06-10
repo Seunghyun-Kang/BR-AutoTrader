@@ -24,7 +24,7 @@ class Kakao:
                 expire_resfresh = json_data['refresh_token_expires_in']
                 expire_accesstoken = json_data['expires_in']
                 
-        except FileNotFoundError:
+        except:
             self.get_request_token()
 
         self.url_send = "https://kapi.kakao.com/v2/api/talk/memo/default/send"
@@ -52,7 +52,7 @@ class Kakao:
             with open(fpath, "r") as fp: 
                 ts = json.load(fp) 
                 self.refresh_token = ts["refresh_token"]
-        except FileNotFoundError:
+        except:
             print("KAKAO get_request_token ERROR OCCURED")
 
 # 토큰을 갱신하는 함수로 refresh token을 인자로 받고 새로운 token을 리턴함 (주기마다 반복 발급 받음)
@@ -73,13 +73,15 @@ class Kakao:
         
         response = requests.post(url, data=data)
         tokens = response.json()
-        # print(tokens)
 
         try:
             self.access_token = tokens['access_token']
             expires = tokens['expires_in']
-        except FileNotFoundError:
+        except:
+            print(tokens)
             print("KAKAO get_refresh_token ERROR OCCURED")
+            self.get_request_token()
+            self.get_refresh_token()
 
     def send_msg_to_me(self, msg):
 
