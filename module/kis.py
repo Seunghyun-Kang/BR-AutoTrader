@@ -102,7 +102,7 @@ class KIS:
         self.auth()
         
     # 계좌 잔고 액수 반환
-    def get_acct_remains(self):
+    def get_acct_remains(self, kakao):
         url = '/uapi/overseas-stock/v1/trading/inquire-present-balance'
         tr_id = "CTRP6504R"
 
@@ -119,6 +119,11 @@ class KIS:
         try:
             output2 = t1.getBody().output2
             output1 = t1.getBody().output1
+            output3 = t1.getBody().output3
+            tr_count = t1.getHeader().tr_cont
+            if tr_count == 'D' or tr_count == 'E':
+                kakao.send_msg_to_me(f"-----------------\n@@@@@@@@@@@페이지 증가 확인 필요@@@@@@@@@@\n------------------\n")
+            print(output3)
             if t1.getBody().rt_cd == '0':  #body 의 rt_cd 가 0 인 경우만 성공
                 df1 = pd.DataFrame(output1)
                 using_column = ['frcr_evlu_amt2', 'frcr_pchs_amt', 'evlu_pfls_amt2']
@@ -126,9 +131,16 @@ class KIS:
                 df1 = df1.rename(columns={'frcr_evlu_amt2':'평가금액', 'frcr_pchs_amt':'매입금액', 'evlu_pfls_amt2':'평가손익'})
 
                 df = pd.DataFrame(output2)
-                using_column = ['frcr_dncl_amt_2', 'frcr_drwg_psbl_amt_1', 'frcr_buy_mgn_amt']
+                using_column = ['frcr_dncl_amt_2', 'frcr_drwg_psbl_amt_1', 'frcr_buy_mgn_amt','frst_bltn_exrt']
                 df = df[using_column]
-                df = df.rename(columns={'frcr_dncl_amt_2':'외화잔고', 'frcr_drwg_psbl_amt_1':'사용가능', 'frcr_buy_mgn_amt':'매수증거금'})
+                df = df.rename(columns={'frcr_dncl_amt_2':'외화잔고', 'frcr_drwg_psbl_amt_1':'사용가능', 'frcr_buy_mgn_amt':'매수증거금', 'frst_bltn_exrt':'환율'})
+                
+                # df3 = pd.DataFrame(output3)
+                # # using_column = ['tot_asst_amt']
+                # # df3 = df3[using_column]
+                # # df3 = df3.rename(columns={'tot_asst_amt':'총자산금액'})
+                # print(df3)
+                
                 return df1, df
             else:
                 t1.printError()
@@ -136,7 +148,31 @@ class KIS:
         except:
             print("ERROR IN REQUEST")  
         
+    def get_total_assets(self):
+        url = '/uapi/overseas-stock/v1/trading/inquire-present-balance'
+        tr_id = "CTRP6504R"
 
+        params = {
+            'CANO': self.getTREnv().my_acct, 
+            'ACNT_PRDT_CD': '01', 
+            'WCRC_FRCR_DVSN_CD': '02', 
+            'NATN_CD': '840', 
+            'TR_MKET_CD': '00', 
+            'INQR_DVSN_CD': '00'
+            }
+
+        t1 = self._url_fetch(url, tr_id, params)
+        try:
+            output3 = t1.getBody().output3
+            print("@@@@@@@@@@@@@@")
+            print(output3)
+            if t1.getBody().rt_cd == '0':  #body 의 rt_cd 가 0 인 경우만 성공
+                return float(output3['tot_asst_amt'])
+            else:
+                t1.printError()
+                return None
+        except:
+            print("ERROR IN REQUEST")  
     # 계좌 잔고를 DataFrame 으로 반환
     # Input: None (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
     # Output: DataFrame (Option) rtCashFlag=True 면 예수금 총액을 반환하게 된다
