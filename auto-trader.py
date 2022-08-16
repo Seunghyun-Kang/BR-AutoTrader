@@ -122,7 +122,8 @@ class AutoTradeModuleCREON:
             codes = f.readline()
             if codes == '' :
                 break
-            self.breakstocks.append(codes[1:6])
+            self.breakstocks.append(codes[1:7])
+        self.f.write(f"휴식기 주식 리스트 --\n {self.breakstocks}\n")
 
         for pos in range(len(self.signals)):
             code = self.signals.values[pos][0]
@@ -136,17 +137,21 @@ class AutoTradeModuleCREON:
                 if checkStatus['control'] != 0 or checkStatus['supervision'] != 0 or checkStatus['status'] != 0:
                     #self.kakao.send_msg_to_me(f"거래 위험 종목, 매수 무시 예정--{self.company[code]}")
                     print(f"거래 위험 종목 --{self.company[code]}")
+                    
+                    self.f.write(f"거래 위험 종목 --{self.company[code]}")
                     print(self.creon.get_stockstatus(code))
                     self.ignore_code.append(code)
 
                 if ICR < 0.0:
                     #self.kakao.send_msg_to_me(f"이자보상배율 0 이하, 매수 무시 예정--{self.company[code]}")
                     print(f"이자보상배율 0 이하 --{self.company[code]}")
+                    self.f.write(f"이자보상배율 0 이하 --{self.company[code]}")
                     self.ignore_code.append(code)
 
                 for stock in self.allStockHolding:
                     if stock['종목코드'] == 'A'+code and stock['수익률'] > -20:
                         print(f"-20% 이상, 매수 무시 예정--{self.company[code]}")
+                        self.f.write(f"-20% 이상, 매수 무시 예정--{self.company[code]}")
                         #self.kakao.send_msg_to_me(f"-20% 이상, 매수 무시 예정--{self.company[code]}")
                         self.ignore_code.append(code)
                 
@@ -154,6 +159,7 @@ class AutoTradeModuleCREON:
                     konex_code = self.konex.values[pos][0]
                     if code == konex_code:
                         print(f"KONEX, 매수 무시 예정--{self.company[code]}")
+                        self.f.write(f"KONEX, 매수 무시 예정--{self.company[code]}")
                         self.f.write(f"KONEX, 매수 무시 예정--{self.company[code]}")
                         #self.kakao.send_msg_to_me(f"KONEX, 매수 무시 예정--{self.company[code]}")
                         self.ignore_code.append(code)
