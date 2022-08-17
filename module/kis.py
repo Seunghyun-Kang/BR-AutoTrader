@@ -126,9 +126,9 @@ class KIS:
             print(output3)
             if t1.getBody().rt_cd == '0':  #body 의 rt_cd 가 0 인 경우만 성공
                 df1 = pd.DataFrame(output1)
-                using_column = ['frcr_evlu_amt2', 'frcr_pchs_amt', 'evlu_pfls_amt2']
+                using_column = ['pdno', 'prdt_name', 'evlu_pfls_rt1', 'ccld_qty_smtl1','frcr_evlu_amt2', 'frcr_pchs_amt', 'evlu_pfls_amt2']
                 df1 = df1[using_column]
-                df1 = df1.rename(columns={'frcr_evlu_amt2':'평가금액', 'frcr_pchs_amt':'매입금액', 'evlu_pfls_amt2':'평가손익'})
+                df1 = df1.rename(columns={'pdno':'코드', 'prdt_name':'종목명', 'evlu_pfls_rt1':'수익률', 'ccld_qty_smtl1':'수량','frcr_evlu_amt2':'평가금액', 'frcr_pchs_amt':'매입금액', 'evlu_pfls_amt2':'평가손익'})
 
                 df = pd.DataFrame(output2)
                 using_column = ['frcr_dncl_amt_2', 'frcr_drwg_psbl_amt_1', 'frcr_buy_mgn_amt','frst_bltn_exrt']
