@@ -19,16 +19,41 @@ import configparser as parser
 from pytimekr import pytimekr
 import holidays
 from abc import ABC, abstractmethod
-
+    
 class AutoTrader(ABC):
     def __init__(self):
         print("AutoTrader init()")
-        # self.kakao = kakao.Kakao()
+        self.kakao = kakao.Kakao()
+        self.conn = None
         self.holidays = []
+        self.signals = []
+        self.company = {}
         self.weekday = datetime.today().weekday()
 
         now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
         self.f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
+
+    def __del__(self):
+        self.f.close()
+
+    def connectDB(self, db_name):
+        properties = parser.ConfigParser()
+        properties.read('./config.ini')
+        host = properties[db_name]['host']
+        pwd = properties[db_name]['pwd']
+        user = properties[db_name]['user']
+        database = properties[db_name]['database']
+        self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
+        
+    def getSignalList(self, table_name, signal_day):
+        with self.conn.cursor() as curs :
+            sql = f"select code, type, close, date from {table_name} where date >= '{signal_day}' and valid = 'valid'"
+            curs.execute(sql) 
+            return pd.DataFrame(curs.fetchall())
+
+    @abstractmethod
+    def getCompanyList(self):
+        pass
 
     @abstractmethod
     def login(self):
@@ -42,9 +67,9 @@ class AutoTrader(ABC):
     def isWorking(self):
         pass
 
-    # @abstractmethod
-    # def getExceptionItemList(self):
-    #     pass
+    @abstractmethod
+    def getExceptionItemList(self):
+        pass
 
     @abstractmethod
     def buy(self):
@@ -55,13 +80,13 @@ class AutoTrader(ABC):
         pass
 
     @abstractmethod
-    def monitor(self):
+    def getHoldings(self):
         pass 
 
     def printlog(self, content):
         print(content)
         self.f.write(f"{content}")
-        # self.kakao.send_msg_to_me(f"{content}")
+        self.kakao.send_msg_to_me(f"{content}")
 
     def isHoliday(self, date):
         for holiday in self.holidays:
@@ -97,11 +122,22 @@ class Creon(AutoTrader):
         self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
         self.creon.subscribe_orderevent(self.callback)
 
+    def getCompanyList(self, table_name):
+        with self.conn.cursor() as curs :
+            sql = f"select code, company from {table_name}"
+            curs.execute(sql) 
+            companyPD = pd.DataFrame(curs.fetchall())
+            
+            for pos in range(len(companyPD)):
+                code = companyPD.values[pos][0]
+                company = companyPD.values[pos][1]
+                self.company[code] = company
+
     def setHolidays(self):
         kr_holidays = pytimekr.holidays(year=datetime.now().year)
         red_days_chuseok = pytimekr.red_days(pytimekr.chuseok(year=datetime.now().year))
-        print(red_days_chuseok)
         red_days_lunar_newyear = pytimekr.red_days(pytimekr.lunar_newyear(year=datetime.now().year))
+        
         return kr_holidays + red_days_lunar_newyear + red_days_chuseok
 
     def getSignalDate(self):
@@ -112,6 +148,18 @@ class Creon(AutoTrader):
         
         return _time.strftime("%Y-%m-%d")
 
+    def getExceptionItemList(self):
+        breakstocks = []
+        holdings_f = open(f"holding2.txt", 'r', encoding="UTF-8")
+        
+        while True :
+            codes = holdings_f.readline()
+            if codes == '' :
+                break
+            breakstocks.append(codes[1:7])
+
+        return breakstocks
+        
     def isWorking(self):
         _time = datetime.now()
 
@@ -136,15 +184,27 @@ class Creon(AutoTrader):
         self.creon.sell(code, num, 0)
         time.sleep(1.5)
 
-    def monitor(self):
-        self.printlog("Creon monitor()")
+    def getHoldings(self):
+        holdings = []
+        items = self.creon.get_holdings()['data']
 
+        for item in items:
+             data = {}
+             data['code'] = item['종목코드']
+             data['profit'] = item['평가손익']
+             data['profit_rate'] = item['수익률']
+             data['name'] = item['종목명']
+             holdings.append(data)
+
+        return holdings
+ 
     def callback(self, item):
         print(f"callbakc recieved:: {item}")
         _hash = item['주문번호']
         _date = datetime.today().strftime("%Y-%m-%d")
         _type = "buy"
         code = item['종목코드'].replace("A","")
+
         if item['매매구분코드'] == "1" or item['매매구분코드'] == 1:
             _type = "sell"
         if item['체결가격'] == 0:
