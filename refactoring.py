@@ -39,7 +39,7 @@ class AutoTrader(ABC):
         pass
 
     @abstractmethod
-    def isRunning(self):
+    def isWorking(self):
         pass
 
     # @abstractmethod
@@ -75,35 +75,28 @@ class AutoTrader(ABC):
 class Creon(AutoTrader):
     def __init__(self):
         super().__init__()
-
-        self.login()
         self.holidays = self.setHolidays()
-
-        self.work = self.isRunning()
-
-        if self.work:
-            self.signalday = self.getSignalDate()
-            self.printlog(f"--시그널 날짜 : {self.signalday}--")
         
     def login(self):
-        # os.system('taskkill /IM coStarter*  /F  /T')
-        # os.system('taskkill /IM CpStart*  /F  /T')
-        # os.system('taskkill /IM DibServer*  /F  /T')
+        os.system('taskkill /IM coStarter*  /F  /T')
+        os.system('taskkill /IM CpStart*  /F  /T')
+        os.system('taskkill /IM DibServer*  /F  /T')
 
-        # os.system('wmic process where "name like \'%coStarter%\'" call terminate')
-        # os.system('wmic process where "name like \'%CpStart%\'" call terminate')
-        # os.system('wmic process where "name like \'%DibServer%\'" call terminate')
+        os.system('wmic process where "name like \'%coStarter%\'" call terminate')
+        os.system('wmic process where "name like \'%CpStart%\'" call terminate')
+        os.system('wmic process where "name like \'%DibServer%\'" call terminate')
 
-        # self.creon = creon.Creon()
+        self.creon = creon.Creon()
 
-        # properties = parser.ConfigParser()
-        # properties.read('./config.ini')
-        # self.creon_id = properties['CREON_INFO']['id']
-        # creon_pwd = properties['CREON_INFO']['pwd']
-        # creon_cert_pwd = properties['CREON_INFO']['pwdcert']
+        properties = parser.ConfigParser()
+        properties.read('./config.ini')
+        self.creon_id = properties['CREON_INFO']['id']
+        creon_pwd = properties['CREON_INFO']['pwd']
+        creon_cert_pwd = properties['CREON_INFO']['pwdcert']
         
-        # self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
-        pass
+        self.creon.connect(self.creon_id, creon_pwd, creon_cert_pwd)
+        self.creon.subscribe_orderevent(self.callback)
+
     def setHolidays(self):
         kr_holidays = pytimekr.holidays(year=datetime.now().year)
         red_days_chuseok = pytimekr.red_days(pytimekr.chuseok(year=datetime.now().year))
@@ -119,7 +112,7 @@ class Creon(AutoTrader):
         
         return _time.strftime("%Y-%m-%d")
 
-    def isRunning(self):
+    def isWorking(self):
         _time = datetime.now()
 
         for red_day in self.holidays:
@@ -135,14 +128,31 @@ class Creon(AutoTrader):
             self.printlog(f"--오늘은 한국 {days[self.weekday]}--")
             return True
 
-    def buy(self):
-        self.printlog("Creon buy()")
+    def buy(self, code, num):
+        self.creon.buy(code, num, 0)
+        time.sleep(1.5)
 
-    def sell(self):
-        self.printlog("Creon sell()")
+    def sell(self, code, num):
+        self.creon.sell(code, num, 0)
+        time.sleep(1.5)
 
     def monitor(self):
         self.printlog("Creon monitor()")
 
+    def callback(self, item):
+        print(f"callbakc recieved:: {item}")
+        _hash = item['주문번호']
+        _date = datetime.today().strftime("%Y-%m-%d")
+        _type = "buy"
+        code = item['종목코드'].replace("A","")
+        if item['매매구분코드'] == "1" or item['매매구분코드'] == 1:
+            _type = "sell"
+        if item['체결가격'] == 0:
+            return
+
+        if _type == "buy":
+            self.printlog(f"매수 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
+        else:
+            self.printlog(f"매도 체결 완료: {self.company[code]}, 체결수량 {item['체결수량']}, 체결 가격 {format(item['체결가격'], ',')}\n")
 
 creon = Creon()
