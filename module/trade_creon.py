@@ -1,10 +1,9 @@
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from module import creon
-from module import kakao
-from module import trade_module
-
+from module.creon import Creon
+from module.trade_module import AbstractTradeModule
+from module.stock_detail import StockDetail
 import time
 from datetime import timedelta, datetime
 import configparser as parser
@@ -13,10 +12,10 @@ import holidays
 import pymysql
 import pandas as pd
 
-class CreonTradeModule(trade_module.AbstractTradeModule):
+class CreonTradeModule(AbstractTradeModule):
     def __init__(self):
         super().__init__()
-        self.creon_api = creon.Creon()
+        self.creon_api = Creon()
 
     def connect_api(self):
         os.system('taskkill /IM coStarter*  /F  /T')
@@ -92,7 +91,18 @@ class CreonTradeModule(trade_module.AbstractTradeModule):
                 self.company[code] = company
 
     def get_holding_stocks(self):
-        return self.creon_api.get_holdings()['data']
+        for item in self.creon_api.get_holdings()['data']:
+            name = item['종목명']
+            code = item['종목코드']
+            quantity = item['매도가능수량']
+            price = item['평가 금액']
+            profit = item['평가손익']
+            profit_rate = item['수익률']
+            even_price = item['손익단가']
+
+            self.holding_stocks[code] = StockDetail(name, code, quantity, price, profit, profit_rate, even_price)
+        
+        return self.holding_stocks
 
     def get_account_money(self):
         money = self.creon_api.get_balance()
