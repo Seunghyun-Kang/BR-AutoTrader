@@ -105,6 +105,18 @@ class CreonTradeModule(trade_module.AbstractTradeModule):
     def make_buy_list(self):
         pass
 
+    def get_break_stocks(self):
+        break_stocks = []
+        f = open(f"./holding2.txt", 'r', encoding="UTF-8")
+
+        while True :
+            codes = f.readline()
+            if codes == '' :
+                break
+            break_stocks.append(codes[1:7])
+
+        return break_stocks
+
     def make_sell_list(self):
         pass
 
