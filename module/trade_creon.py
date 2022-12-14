@@ -15,7 +15,21 @@ import pandas as pd
 class CreonTradeModule(AbstractTradeModule):
     def __init__(self):
         super().__init__()
+
         self.creon_api = Creon()
+
+        self.connect_api()
+        self.connect_database()
+        self.set_properties()
+
+
+    def set_properties(self):
+        # self.company_dic = self.set_companies()
+        self.signal_day = self.get_signal_day()
+        self.signal_list = self.get_signals_from_core(self.signal_day)
+        self.holding_stocks = self.get_holding_stocks()
+        self.account_money = self.get_account_money()
+
 
     def connect_api(self):
         os.system('taskkill /IM coStarter*  /F  /T')
@@ -35,11 +49,13 @@ class CreonTradeModule(AbstractTradeModule):
         except:
             print("크레온 서버 접속 실패")
 
+
     def get_signal_day(self):
         day_before = 1
         while self.is_holiday((datetime.today() - timedelta(day_before))):
             day_before = day_before + 1
         return (datetime.today() - timedelta(day_before)).strftime("%Y-%m-%d")
+
 
     def is_holiday(self, day):
         kr_holidays = pytimekr.holidays(year=datetime.now().year)
@@ -64,6 +80,7 @@ class CreonTradeModule(AbstractTradeModule):
         
         return False
 
+
     def connect_database(self):
         host = self.config['DB_INFO']['host']
         pwd = self.config['DB_INFO']['pwd']
@@ -80,6 +97,7 @@ class CreonTradeModule(AbstractTradeModule):
 
 
     def set_companies(self):
+        companies = {}
         with self.conn.cursor() as curs :
             sql = f"select code, company from company_info"
             curs.execute(sql) 
@@ -88,33 +106,47 @@ class CreonTradeModule(AbstractTradeModule):
             for pos in range(len(companyPD)):
                 code = companyPD.values[pos][0]
                 company = companyPD.values[pos][1]
-                self.company[code] = company
+                companies[code] = company
+        return companies
+
 
     def get_holding_stocks(self):
-        for item in self.creon_api.get_holdings()['data']:
-            name = item['종목명']
-            code = item['종목코드']
-            quantity = item['매도가능수량']
-            price = item['평가 금액']
-            profit = item['평가손익']
-            profit_rate = item['수익률']
-            even_price = item['손익단가']
+        holding_stock_dic = {}
 
-            self.holding_stocks[code] = StockDetail(name, code, quantity, price, profit, profit_rate, even_price)
-        
-        return self.holding_stocks
+        try:
+            for item in self.creon_api.get_holdings()['data']:
+                name = item['종목명']
+                code = item['종목코드']
+                quantity = item['매도가능수량']
+                price = item['평가 금액']
+                profit = item['평가손익']
+                profit_rate = item['수익률']
+                even_price = item['손익단가']
+                holding_stock_dic[code] = StockDetail(name, code, quantity, price, profit, profit_rate, even_price)
+        except:
+            print("잔고 조회 실패")
+
+        return holding_stock_dic
+
 
     def get_account_money(self):
-        money = self.creon_api.get_balance()
-        for item in self.get_holding_stocks():
-            money = money + item['평가금액']
+        try:
+            money = self.creon_api.get_balance()
+            for item in self.get_holding_stocks():
+                money = money + item['평가금액']
+        except:
+            print("예수금 조회 실패")
+            return None
+
         return money
 
     def get_today_price_per_stock(self):
         return self.get_account_money() / 50
     
+
     def make_buy_list(self):
         pass
+
 
     def get_break_stocks(self):
         break_stocks = []
@@ -128,8 +160,10 @@ class CreonTradeModule(AbstractTradeModule):
 
         return break_stocks
 
+
     def make_sell_list(self):
         pass
+
 
     def start_trade(self):
         pass
