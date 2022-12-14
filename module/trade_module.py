@@ -1,14 +1,14 @@
 from abc import *
-from module import kakao
+from module.kakao import Kakao
 import configparser as parser
 
 class AbstractTradeModule(metaclass=ABCMeta):
 
     def __init__(self):
-        self.kakao = kakao.Kakao()
+        self.kakao = Kakao()
         self.config = parser.ConfigParser()
         self.config.read('./config.ini')
-        self.holding_stocks = [] 
+        self.holding_stocks = {}
         self.company = {}
 
     @abstractmethod
