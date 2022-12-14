@@ -1,7 +1,7 @@
 
 import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-# from module import creon
+from module import creon
 from module import kakao
 from module import trade_module
 
@@ -14,8 +14,9 @@ import pymysql
 import pandas as pd
 
 class CreonTradeModule(trade_module.AbstractTradeModule):
-    # def __init__(self):
-        # self.creon_api = creon.Creon()
+    def __init__(self):
+        super().__init__()
+        self.creon_api = creon.Creon()
 
     def connect_api(self):
         os.system('taskkill /IM coStarter*  /F  /T')
@@ -72,9 +73,9 @@ class CreonTradeModule(trade_module.AbstractTradeModule):
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
         
 
-    def get_signals_from_core(self):
+    def get_signals_from_core(self, signal_day):
         with self.conn.cursor() as curs :
-            sql = f"select code, type, close, date from signal_bollinger_reverse where date >= '{self.signal_day}' and valid = 'valid'"
+            sql = f"select code, type, close, date from signal_bollinger_reverse where date >= '{signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             return pd.DataFrame(curs.fetchall())
 
@@ -91,10 +92,10 @@ class CreonTradeModule(trade_module.AbstractTradeModule):
                 self.company[code] = company
 
     def get_holding_stocks(self):
-        return self.creon.get_holdings()['data']
+        return self.creon_api.get_holdings()['data']
 
     def get_account_money(self):
-        money = self.creon.get_balance()
+        money = self.creon_api.get_balance()
         for item in self.get_holding_stocks():
             money = money + item['평가금액']
         return money

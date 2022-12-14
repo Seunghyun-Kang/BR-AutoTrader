@@ -8,8 +8,8 @@ class AbstractTradeModule(metaclass=ABCMeta):
         self.kakao = kakao.Kakao()
         self.config = parser.ConfigParser()
         self.config.read('./config.ini')
-
         self.holding_stocks = [] 
+        self.company = {}
 
     @abstractmethod
     def connect_api(self):
@@ -24,11 +24,11 @@ class AbstractTradeModule(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_signals_from_core(self):
+    def get_signals_from_core(self, signal_day):
         pass
 
     @abstractmethod
-    def get_companies(self):
+    def set_companies(self):
         pass
 
     @abstractmethod
