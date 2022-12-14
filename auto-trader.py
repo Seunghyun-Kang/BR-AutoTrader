@@ -1,5 +1,6 @@
 from asyncio.windows_events import NULL
 import math
+from pickletools import read_unicodestringnl
 import numpy as np
 import pymysql
 import pandas as pd
@@ -87,10 +88,10 @@ class AutoTradeModuleCREON:
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
 
-        with self.conn.cursor() as curs :
-            sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{self.signal_day}' and valid = 'valid'"
-            curs.execute(sql) 
-            self.signals_origin = pd.DataFrame(curs.fetchall())
+        # with self.conn.cursor() as curs :
+        #     sql = f"select code, type, close, date from signal_bollinger_trend where date >= '{self.signal_day}' and valid = 'valid'"
+        #     curs.execute(sql) 
+        #     self.signals_origin = pd.DataFrame(curs.fetchall())
 
         self.company = {}
         with self.conn.cursor() as curs :
@@ -188,7 +189,7 @@ class AutoTradeModuleCREON:
         for item in self.allStockHolding:
             self.accout_money = self.accout_money + item['평가금액']
 
-        self.PRICE_PER_ORDER = self.accout_money / 25  # -> 50 : 100만원
+        self.PRICE_PER_ORDER = self.accout_money / 50  # -> 50 : 100만원
         print("전체 계좌 잔고: ")
         print(self.accout_money)
         print("예수금 잔고: ")
@@ -209,10 +210,10 @@ class AutoTradeModuleCREON:
         self.kakao.send_msg_to_me(f"--\n오늘의 거래 분석 {self.signal_day} 일자 신호\n총 {len(self.signals)}건\n--")
         remain_deposit = self.remain_deposit
         
-        for pos in range(len(self.signals_origin)):
+        for pos in range(len(self.signals)):
             ignore_flag = False
-            code_origin = self.signals_origin.values[pos][0]
-            signal_type_origin = self.signals_origin.values[pos][1]
+            code_origin = self.signals.values[pos][0]
+            signal_type_origin = self.signals.values[pos][1]
             num = 0
             if signal_type_origin == 'sell':
                 for stock in self.allStockHolding:
@@ -280,9 +281,9 @@ class AutoTradeModuleCREON:
                 self.kakao.send_msg_to_me(f"{i+1}. 매도: {stock_name} - 손익 {format(price, ',')}원 - 수익률 {profit}\n")
     
     def start_task(self):
-        for pos in range(len(self.signals_origin)):
-            code_origin = self.signals_origin.values[pos][0]
-            signal_type_origin = self.signals_origin.values[pos][1]
+        for pos in range(len(self.signals)):
+            code_origin = self.signals.values[pos][0]
+            signal_type_origin = self.signals.values[pos][1]
         
             if signal_type_origin == 'sell':
                 for stock in self.allStockHolding:
@@ -383,6 +384,7 @@ class AutoTradeModuleKIS:
         self.f = file
         
         self.kakao = kakao.Kakao()
+        today = (datetime.utcnow()).strftime("%Y-%m-%d")
 
         if datetime.utcnow().weekday() == 0:
             self.signal_day = (datetime.utcnow() - timedelta(3)).strftime("%Y-%m-%d")
@@ -391,8 +393,9 @@ class AutoTradeModuleKIS:
             self.signal_day = (datetime.utcnow() - timedelta(2)).strftime("%Y-%m-%d")
         else:
             self.signal_day = (datetime.utcnow() - timedelta(1)).strftime("%Y-%m-%d")
+
         print(f"Signal day is : {self.signal_day}")
-        self.kakao.send_msg_to_me(f"Signal day is : {self.signal_day}")
+        self.kakao.send_msg_to_me(f"Today is {today}, Signal day is : {self.signal_day}")
         
         properties = parser.ConfigParser()
         properties.read('./config.ini')
@@ -409,12 +412,14 @@ class AutoTradeModuleKIS:
         self.sellList = []
         self.buyList = []
 
-    def reinit(self):
+    def reinit(self, file):
+        self.kakao.send_msg_to_me(f"나스닥 reinit")
         with self.conn.cursor() as curs :
             sql = f"select code, type, close, date from signal_bollinger_reverse_usa where date >= '{self.signal_day}' and valid = 'valid'"
             curs.execute(sql) 
             self.signals = pd.DataFrame(curs.fetchall())
             print(self.signals)
+            self.f.write(f"{self.signals}\n")
 
         self.company = {}
         self.ticker = {}
@@ -427,8 +432,11 @@ class AutoTradeModuleKIS:
                 code = companyPD.values[pos][0]
                 self.company[code] = companyPD.values[pos][1]
                 self.ticker[code] = companyPD.values[pos][2]
+        
+        self.kakao.send_msg_to_me(f"나스닥 reinit end")
  
     def check_deposit(self):
+        self.f.write(f"check_deposit IN\n")
         remainStock, accountMoney = self.kis.get_acct_remains(self.kakao)
         self.allStockHolding = remainStock
         total = self.kis.get_total_assets()
@@ -457,7 +465,8 @@ class AutoTradeModuleKIS:
         self.kakao.send_msg_to_me(f"--현재까지 미국주식 자산 {self.total_money} 달러--\n--현재까지 미국주식 수익률 {profit}%--\n--오늘의 미국주식 종목 당 가격 {self.PRICE_PER_ORDER} 달러--\n")
                 
     def check_signals(self):
-        print("@@@@@@@@@@@@@@@@@@@@@@@")
+        self.f.write(f"check_signals IN\n")
+        print("F")
         print(self.allStockHolding)
         remain_deposit = self.remains
         needMoney = 0
@@ -494,7 +503,7 @@ class AutoTradeModuleKIS:
 
                     if code == holding_code:
                         num = self.allStockHolding.수량.values[idx]
-                        profit = self.allStockHolding.실현손익.values[idx]
+                        profit = self.allStockHolding.평가손익.values[idx]
                         profit_rate = self.allStockHolding.수익률.values[idx]
                         self.sellList.append((code, name , signal_price, profit, profit_rate, num))
                         print(f"**미국주식 매도 예정 {name}, {profit} 이익**\n")
@@ -534,6 +543,9 @@ class AutoTradeModuleKIS:
     
     def trade(self, type):
         self.allStockHolding = self.kis.get_acct_balance()
+        if self.allStockHolding is None:
+            return
+
         profit_flag = 0.0
 
         if type == 'normal': 
@@ -541,6 +553,8 @@ class AutoTradeModuleKIS:
         elif type == 'last':
             profit_flag = 5.0
 
+        print("@@@@@@@@@@@@@@@@@@@@")
+        print(self.allStockHolding)
         for idx in range(len(self.allStockHolding)):
             holding_code = self.allStockHolding.코드.values[idx]
             name = self.allStockHolding.종목명.values[idx]
@@ -566,9 +580,6 @@ now = str(datetime.today().strftime("%Y-%m-%d-%H-%M-%S"))
 kakao_module = kakao.Kakao()
 
 f = open(f"log_{now}.txt", 'w', encoding="UTF-8")
-
-work = AutoTradeModuleCREON(f)
-work_nasdaq = AutoTradeModuleKIS(f)
 
 KRX_Done = False
 NASDAQ_Done = False
@@ -618,7 +629,9 @@ if _weekday == 5 or _weekday == 6:
 while True:
     _time = datetime.now()
 
-    if _time.hour == 8 and _time.minute >= 30 and  KRX_Done == False and KRX_Break == False and KRX_Check == False:
+    if _time.hour >= 8  and  KRX_Done == False and KRX_Break == False and KRX_Check == False:
+
+        work = AutoTradeModuleCREON(f)
         work.checkTodayOrder()
         work.checkDeposit() 
         KRX_Check = True
@@ -640,33 +653,37 @@ while True:
         del work
         KRX_Done = False 
 
-    if _time.hour == 16 and _time.minute >= 30 and NASDAQ_Done == False and NASDAQ_Break == False and NASDAQ_Ready == False:
+    if _time.hour >= 20 and NASDAQ_Done == False and NASDAQ_Break == False and NASDAQ_Start == False:
+        work_nasdaq = AutoTradeModuleKIS(f)
+        print(f"--오늘의 미국 자동매매 시작 {_time}--")
+        f.write(f"--오늘의 미국 자동매매 시작 {_time}--")
+        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 시작 \n{_time}\n--")
+        NASDAQ_Start = True
+
+    if _time.hour == 22 and NASDAQ_Done == False and NASDAQ_Break == False and NASDAQ_Ready == False:
         print(f"--오늘의 미국 자동매매 시작 준비 {_time}--")
         f.write(f"--오늘의 미국 자동매매 시작 준비 {_time}--")
         kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 준비 \n{_time}\n--")
-        work_nasdaq.reinit()
+        
+        work_nasdaq.reinit(f)
         time.sleep(1)
         work_nasdaq.check_deposit()
         time.sleep(1)
         work_nasdaq.check_signals()
-        NASDAQ_Ready = True
-
-    if _time.hour >= 17 and NASDAQ_Done == False and NASDAQ_Break == False and NASDAQ_Start == False:
-        print(f"--오늘의 미국 자동매매 시작 {_time}--")
-        f.write(f"--오늘의 미국 자동매매 시작 {_time}--")
-        kakao_module.send_msg_to_me(f"--\n오늘의 미국 자동매매 시작 \n{_time}\n--")
+        time.sleep(1)
         work_nasdaq.start_task()
-        NASDAQ_Start = True
+        NASDAQ_Ready = True
 
     if ((_time.hour == 22 and _time.minute >= 30) or (_time.hour >= 0 and _time.hour < 5)) and NASDAQ_Done == False and NASDAQ_Break == False:
         NASDAQ_Done = True
 
-    if NASDAQ_Done == True and  _time.second == 0 and NASDAQ_Break == False:
+    if NASDAQ_Done == True and  _time.second == 0.0 and NASDAQ_Break == False:
         print(f"--미국 자동매매 가격 점검 {_time}--")
         work_nasdaq.trade('normal')
 
     if NASDAQ_Done == True and _time.hour == 4 and _time.second == 30 and NASDAQ_Break == False:
         print(f"--미국 자동매매 최종 가격 점검 {_time}--")
+        kakao_module.send_msg_to_me(f"--미국 자동매매 최종 가격 점검 {_time}--")
         work_nasdaq.trade('last')
 
     if _time.hour == 5 and _time.minute == 0 and NASDAQ_Done == True and NASDAQ_Break == False:
