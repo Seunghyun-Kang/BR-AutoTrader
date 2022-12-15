@@ -28,7 +28,7 @@ class AbstractTradeModule(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_signals_from_core(self, signal_day):
+    def set_signals_from_core(self, signal_day):
         pass
 
     @abstractmethod
