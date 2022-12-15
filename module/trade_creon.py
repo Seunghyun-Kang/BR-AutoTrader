@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from module.creon import Creon
 from module.trade_module import AbstractTradeModule
 from module.stock_detail import StockDetail
+from module.signal_detail import SignalDetail
 import time
 from datetime import timedelta, datetime
 import configparser as parser
@@ -26,7 +27,7 @@ class CreonTradeModule(AbstractTradeModule):
     def set_properties(self):
         # self.company_dic = self.set_companies()
         self.signal_day = self.get_signal_day()
-        self.signal_list = self.get_signals_from_core(self.signal_day)
+        self.set_signals_from_core(self.signal_day)
         self.holding_stocks = self.get_holding_stocks()
         self.account_money = self.get_account_money()
 
@@ -89,11 +90,19 @@ class CreonTradeModule(AbstractTradeModule):
         self.conn = pymysql.connect(host=host, user=user, password=pwd, db=database, charset='utf8')
         
 
-    def get_signals_from_core(self, signal_day):
+    def set_signals_from_core(self, signal_day):
         with self.conn.cursor() as curs :
-            sql = f"select code, type, close, date from signal_bollinger_reverse where date >= '{signal_day}' and valid = 'valid'"
+            sql = f"select code, type, close, date, buy_count from signal_bollinger_reverse where date >= '{signal_day}' and valid = 'valid'"
             curs.execute(sql) 
-            return pd.DataFrame(curs.fetchall())
+            signals = pd.DataFrame(curs.fetchall())
+            for pos in range(len(signals)):
+                code = signals.values[pos][0]
+                signal_date = signals.values[pos][3]
+                signal_type = signals.values[pos][1]
+                signal_price = signals.values[pos][2]
+                signal_count = signals.values[pos][4]
+
+                self.signal_list.append(SignalDetail(code, signal_date, signal_type, signal_price, signal_count))
 
 
     def set_companies(self):
