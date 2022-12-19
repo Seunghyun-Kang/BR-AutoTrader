@@ -151,9 +151,13 @@ class Creon:
                 self.order(action, code, amount, try_num)
 
     def buy(self, code, amount, try_num):
+        if not code.startswith('A'):
+            code = 'A' + code
         return self.order('2', code, amount, try_num)
 
     def sell(self, code, amount, try_num):
+        if not code.startswith('A'):
+            code = 'A' + code
         return self.order('1', code, amount, try_num)
     
     def getICR(self, code):
