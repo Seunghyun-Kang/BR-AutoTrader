@@ -9,6 +9,7 @@ import time
 from datetime import timedelta, datetime
 import configparser as parser
 from pytimekr import pytimekr
+import FinanceDataReader as fdr
 import holidays
 import pymysql
 import pandas as pd
@@ -30,6 +31,10 @@ class CreonTradeModule(AbstractTradeModule):
         self.set_signals_from_core(self.signal_day)
         self.holding_stocks = self.get_holding_stocks()
         self.account_money = self.get_account_money()
+
+        df_konex = fdr.StockListing('KONEX')
+        df_konex['ticker'] = 'KONEX'
+        self.konex = df_konex.rename(columns={'Symbol':'code', 'Name':'company','ticker':'ticker'})
 
 
     def connect_api(self):
@@ -153,10 +158,6 @@ class CreonTradeModule(AbstractTradeModule):
         return self.get_account_money() / 50
     
 
-    def make_buy_list(self):
-        pass
-
-
     def get_break_stocks(self):
         break_stocks = []
         f = open(f"./holding2.txt", 'r', encoding="UTF-8")
@@ -170,9 +171,46 @@ class CreonTradeModule(AbstractTradeModule):
         return break_stocks
 
 
-    def make_sell_list(self):
-        pass
+    def is_safe_warning(self, code):
+        try:
+            stock_status = self.creon.get_stockstatus(code)
+            if stock_status['control'] != 0 or stock_status['supervision'] != 0 or stock_status['status'] != 0:
+                return False
+            else:
+                return True
+        except:
+            print("종목 위험성 여부 확인 실패")
 
 
-    def start_trade(self):
-        pass
+    def is_safe_ICR(self, code):
+        try:
+            ICR = self.creon.getICR(code)
+            if ICR < 0.0:
+                return False
+            else:
+                return True
+        except:
+            print("종목 ICR 확인 실패")
+
+
+    def is_KONEX(self, code):
+        try:
+            for pos in range(len(self.konex)):
+                konex_code = self.konex.values[pos][0]
+                if code == konex_code:
+                    return True
+
+            return False
+        except:
+            print("KONEX 확인 실패")
+
+
+    def buy(self, code, num):
+        self.creon.buy(code, num, 0)
+
+
+    def sell(self, code, num):
+        self.creon.sell(code, num, 0)
+
+
+

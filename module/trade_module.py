@@ -46,15 +46,11 @@ class AbstractTradeModule(metaclass=ABCMeta):
     @abstractmethod
     def get_today_price_per_stock(self):
         pass
-    
+
     @abstractmethod
-    def make_buy_list(self):
+    def buy(self, code, num):
         pass
 
     @abstractmethod
-    def make_sell_list(self):
-        pass
-
-    @abstractmethod
-    def start_trade(self):
+    def sell(self, code, num):
         pass
