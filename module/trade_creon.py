@@ -17,9 +17,8 @@ import pandas as pd
 class CreonTradeModule(AbstractTradeModule):
     def __init__(self):
         super().__init__()
-
-        self.creon_api = Creon()
-
+       
+        self.creon_api = None
         self.connect_api()
         self.connect_database()
         self.set_properties()
@@ -51,6 +50,7 @@ class CreonTradeModule(AbstractTradeModule):
         creon_cert_pwd = self.config['CREON_INFO']['pwdcert']
         
         try:
+            self.creon_api = Creon()
             self.creon_api.connect(creon_id, creon_pwd, creon_cert_pwd)
         except:
             print("크레온 서버 접속 실패")
@@ -132,7 +132,7 @@ class CreonTradeModule(AbstractTradeModule):
                 name = item['종목명']
                 code = item['종목코드']
                 quantity = item['매도가능수량']
-                price = item['평가 금액']
+                price = item['평가금액']
                 profit = item['평가손익']
                 profit_rate = item['수익률']
                 even_price = item['손익단가']
@@ -146,8 +146,9 @@ class CreonTradeModule(AbstractTradeModule):
     def get_account_money(self):
         try:
             money = self.creon_api.get_balance()
-            for item in self.get_holding_stocks():
-                money = money + item['평가금액']
+            holdings = self.holding_stocks
+            for item in holdings.values():
+                money = money + item.price
         except:
             print("예수금 조회 실패")
             return None
@@ -173,7 +174,7 @@ class CreonTradeModule(AbstractTradeModule):
 
     def is_safe_warning(self, code):
         try:
-            stock_status = self.creon.get_stockstatus(code)
+            stock_status = self.creon_api.get_stockstatus(code)
             if stock_status['control'] != 0 or stock_status['supervision'] != 0 or stock_status['status'] != 0:
                 return False
             else:
@@ -184,7 +185,7 @@ class CreonTradeModule(AbstractTradeModule):
 
     def is_safe_ICR(self, code):
         try:
-            ICR = self.creon.getICR(code)
+            ICR = self.creon_api.getICR(code)
             if ICR < 0.0:
                 return False
             else:
@@ -206,11 +207,11 @@ class CreonTradeModule(AbstractTradeModule):
 
 
     def buy(self, code, num):
-        self.creon.buy(code, num, 0)
+        self.creon_api.buy(code, num, 0)
 
 
     def sell(self, code, num):
-        self.creon.sell(code, num, 0)
+        self.creon_api.sell(code, num, 0)
 
 
 
